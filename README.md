@@ -167,15 +167,85 @@ bash agent_os_mvp/smoke-dashboard.sh
 
 This POC proves a common governance pattern:
 
-- Fab users may define agent display name, background, domain context, tone, and
-  output style.
-- Fab users may only select a CIM-approved capability.
+- Fab users create a simple Role Card: `name`, `role`, `background`, and
+  `style`.
+- Fab users choose a CIM-approved role such as `planner`, `builder`, or
+  `reviewer`; they do not configure skills, MCP, hooks, tools, or output paths.
 - CIM developers own skills, MCP groups, hooks, tool actions, and output path
   boundaries.
 - Runtime evidence, not agent self-reporting, decides whether the boundary was
   enforced.
 
-List available CIM capabilities:
+### Common path: create a Role Card
+
+List available roles:
+
+```bash
+python3 scripts/list_roles.py
+```
+
+Create a Role Card interactively:
+
+```bash
+python3 scripts/create_role_card.py
+```
+
+Or create one with a single command:
+
+```bash
+python3 scripts/create_role_card.py \
+  --name Mina \
+  --role builder \
+  --background "Frontend builder focused on clean, reviewable UI." \
+  --style concise
+```
+
+This creates:
+
+```text
+fab_agents/mina/role-card.yaml
+```
+
+Validate it:
+
+```bash
+python3 scripts/validate_role_card.py fab_agents/mina/role-card.yaml
+```
+
+Resolve it into CIM-managed runtime policy:
+
+```bash
+python3 scripts/resolve_role_card.py fab_agents/mina/role-card.yaml --out results/fab_agent_resolved
+```
+
+Role Card fields are intentionally small:
+
+```yaml
+name: Mina
+role: builder
+style: concise
+background: |
+  Frontend builder focused on clean, reviewable UI.
+```
+
+Role Cards cannot define `skills`, `mcp_servers`, `hooks`, `allowed_tools`,
+`commands`, or `capability`. Those are owned by CIM role presets.
+
+### CIM developer path: manage capabilities
+
+CIM role presets live in:
+
+```text
+configs/cim_roles/
+```
+
+Each role maps to an existing capability in:
+
+```text
+configs/cim_capabilities/
+```
+
+List raw CIM capabilities:
 
 ```bash
 python3 scripts/list_cim_capabilities.py
@@ -251,9 +321,15 @@ http://127.0.0.1:15174/
 - `skills/install-multi-agent-runtime/`: install and doctor skill
 - `.claude/skills/research-task-orchestrator/`: runtime operation skill
 - `agent_os_mvp/`: dashboard backend/frontend package
+- `configs/cim_roles/`: user-facing role presets that map to CIM capabilities
+- `fab_agents/templates/`: copyable Role Card examples
 - `scripts/verify_install.py`: repository verification
 - `scripts/run_ai_company_task_harness.py`: mock/live task harness
 - `scripts/run-agent-micro-gates.ps1`: precise live micro-gate runner
+- `scripts/list_roles.py`: list simple user-facing roles
+- `scripts/create_role_card.py`: create a Role Card without editing JSON
+- `scripts/validate_role_card.py`: reject Role Card attempts to self-assign skills/MCP/hooks/tools
+- `scripts/resolve_role_card.py`: materialize Role Card into effective runtime policy
 - `scripts/list_cim_capabilities.py`: list CIM-approved capability choices
 - `scripts/validate_fab_agent.py`: reject Fab agent attempts to self-assign skills/MCP/hooks/tools
 - `scripts/resolve_fab_agent.py`: generate effective policy, Claude settings, MCP config, and audit log

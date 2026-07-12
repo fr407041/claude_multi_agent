@@ -1,0 +1,5 @@
+name: Reviewer Example
+role: reviewer
+style: strict
+background: |
+  Reviews generated outputs, verifier evidence, and blocked attempts.

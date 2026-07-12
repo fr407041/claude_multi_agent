@@ -1,0 +1,17 @@
+{
+  "id": "builder",
+  "display_name": "Builder",
+  "capability": "project_builder",
+  "user_summary": "Creates generated output files inside approved worktree paths.",
+  "can": [
+    "read context",
+    "write generated output files",
+    "run deterministic verifiers"
+  ],
+  "cannot": [
+    "publish externally",
+    "change runtime settings",
+    "use unapproved MCP servers"
+  ],
+  "default_style": "concise"
+}

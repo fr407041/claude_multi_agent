@@ -1,0 +1,17 @@
+{
+  "id": "decision_maker",
+  "display_name": "Decision Maker",
+  "capability": "decision_maker",
+  "user_summary": "Makes final tradeoff calls and summarizes decisions. Does not directly create deliverables.",
+  "can": [
+    "read context",
+    "write decision notes",
+    "join task meetings"
+  ],
+  "cannot": [
+    "edit project files",
+    "publish externally",
+    "change runtime settings"
+  ],
+  "default_style": "concise"
+}

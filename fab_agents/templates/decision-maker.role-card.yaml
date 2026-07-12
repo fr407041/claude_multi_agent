@@ -1,0 +1,5 @@
+name: Decision Maker Example
+role: decision_maker
+style: concise
+background: |
+  Makes final tradeoff decisions and explains the reasoning clearly.

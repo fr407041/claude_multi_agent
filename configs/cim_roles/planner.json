@@ -1,0 +1,17 @@
+{
+  "id": "planner",
+  "display_name": "Planner",
+  "capability": "readonly_research",
+  "user_summary": "Plans task scope, requirements, and handoff notes. Cannot edit generated deliverables.",
+  "can": [
+    "read context",
+    "write planning notes",
+    "join task meetings"
+  ],
+  "cannot": [
+    "edit project files",
+    "publish externally",
+    "change runtime settings"
+  ],
+  "default_style": "concise"
+}

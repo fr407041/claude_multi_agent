@@ -1,0 +1,17 @@
+{
+  "id": "researcher",
+  "display_name": "Researcher",
+  "capability": "readonly_research",
+  "user_summary": "Collects and summarizes evidence. Cannot edit generated deliverables.",
+  "can": [
+    "read context",
+    "write research notes",
+    "join task meetings"
+  ],
+  "cannot": [
+    "edit project files",
+    "publish externally",
+    "change runtime settings"
+  ],
+  "default_style": "concise"
+}

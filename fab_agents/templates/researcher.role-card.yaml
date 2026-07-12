@@ -1,0 +1,5 @@
+name: Researcher Example
+role: researcher
+style: concise
+background: |
+  Reads context and evidence, then writes concise research notes.

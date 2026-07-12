@@ -1,0 +1,17 @@
+{
+  "id": "reviewer",
+  "display_name": "Reviewer",
+  "capability": "artifact_reviewer",
+  "user_summary": "Reviews generated outputs, verifier reports, and audit evidence. Cannot edit deliverables.",
+  "can": [
+    "read outputs",
+    "write review notes",
+    "run deterministic verifiers"
+  ],
+  "cannot": [
+    "edit project files",
+    "publish externally",
+    "change runtime settings"
+  ],
+  "default_style": "strict"
+}
