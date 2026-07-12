@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agent_os
+      POSTGRES_USER: agent_os
+      POSTGRES_PASSWORD: ${AGENT_OS_POSTGRES_PASSWORD:-local-agent-os}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_os -d agent_os"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - agent_os_pg:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      AGENT_OS_DB_PATH: /app/data/agent_os.db
+      AGENT_OS_DATABASE_URL: postgresql://agent_os:${AGENT_OS_POSTGRES_PASSWORD:-local-agent-os}@postgres:5432/agent_os
+      AGENT_OS_SESSION_ROOT: /sessions
+      AI_COMPANY_PROJECT_ROOT: /workspace
+      AI_COMPANY_RESULTS_ROOT: /workspace/results/ai_company_task_harness
+    ports:
+      - "${AGENT_OS_BACKEND_PORT:-8010}:8000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./sessions:/sessions
+      - ../results:/workspace/results:ro
+      - ${CLAUDE_CONFIG_DIR:-./claude-config}:/root/.claude:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_BASE_URL: ${AGENT_OS_PUBLIC_API_BASE_URL:-http://127.0.0.1:8010}
+    ports:
+      - "${AGENT_OS_FRONTEND_PORT:-5174}:5173"
+    depends_on:
+      - backend
+
+volumes:
+  agent_os_pg:

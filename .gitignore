@@ -1,0 +1,30 @@
+# Runtime outputs
+results/
+tmp/
+logs/
+artifacts/
+.ai-company/
+agent-runs/
+agent-test-runs/
+ptt-stock-live/
+ptt_env/
+upstream-main.zip
+ptt_stock_crawler.py
+
+# Local environments and dependencies
+.venv/
+venv/
+node_modules/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Local databases
+*.db
+*.sqlite
+
+# Local environment files
+.env
+.env.*
+!.env.example

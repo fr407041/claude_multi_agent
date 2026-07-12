@@ -1,0 +1,25 @@
+{
+  "LOG": true,
+  "LOG_LEVEL": "debug",
+  "NON_INTERACTIVE_MODE": true,
+  "HOST": "0.0.0.0",
+  "PORT": 3456,
+  "APIKEY": "$CCR_API_KEY",
+  "API_TIMEOUT_MS": 600000,
+  "Providers": [
+    {
+      "name": "ollama",
+      "api_base_url": "http://192.168.100.112:11435/v1/chat/completions",
+      "api_key": "ollama",
+      "models": ["qwen3-coder:30b"]
+    }
+  ],
+  "Router": {
+    "default": "ollama,qwen3-coder:30b",
+    "background": "ollama,qwen3-coder:30b",
+    "think": "ollama,qwen3-coder:30b",
+    "longContext": "ollama,qwen3-coder:30b",
+    "longContextThreshold": 60000,
+    "webSearch": "ollama,qwen3-coder:30b"
+  }
+}

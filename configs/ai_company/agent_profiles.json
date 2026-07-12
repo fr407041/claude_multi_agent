@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "default_mode": "auto",
+  "runtime_target": "claude-code-2.1.42-compatible",
+  "profiles": {
+    "meeting_coordinator": {
+      "profile_id": "meeting_coordinator",
+      "display_name": "Meeting Coordinator",
+      "purpose": "Keep bounded meetings convergent and produce assignable task decisions.",
+      "role_pack": "planner",
+      "mode": "simple",
+      "allowed_skills": ["research-task-orchestrator"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "none",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/meeting_coordinator.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/meeting_coordinator.md",
+        "forbidden_behaviors": ["do not execute child tasks", "do not expand meeting beyond round limit"],
+        "expected_output_contract": "meeting minutes, risks, decisions, task assignments, and stop conditions"
+      },
+      "scope_limits": {
+        "max_files": 0,
+        "max_phases": 1,
+        "allowed_worker_templates": []
+      },
+      "recovery_policy": {
+        "overflow": "summarize meeting state and reduce agenda",
+        "router_error": "retry once then escalate",
+        "false_success": "mark meeting invalid",
+        "timeout": "emit MEETING_NEEDS_REPLAN"
+      }
+    },
+    "planner_agent": {
+      "profile_id": "planner_agent",
+      "display_name": "Planner Agent",
+      "purpose": "Create bounded task plans and dependencies.",
+      "role_pack": "planner",
+      "mode": "simple",
+      "allowed_skills": ["research-task-orchestrator", "context-window-guard"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "limited",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/planner_agent.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/planner_agent.md",
+        "forbidden_behaviors": ["do not write final artifacts", "do not dispatch broad folder reads"],
+        "expected_output_contract": "bounded plan, dependencies, acceptance criteria, fallback plan"
+      },
+      "scope_limits": {
+        "max_files": 3,
+        "max_phases": 1,
+        "allowed_worker_templates": ["summary_markdown"]
+      },
+      "recovery_policy": {
+        "overflow": "reduce scope by at least 70 percent",
+        "router_error": "retry once with shorter plan",
+        "false_success": "request repair",
+        "timeout": "emit NEEDS_REPLAN"
+      }
+    },
+    "risk_reviewer": {
+      "profile_id": "risk_reviewer",
+      "display_name": "Risk Reviewer",
+      "purpose": "Detect overflow, router, timeout, false-success, and loop risks.",
+      "role_pack": "risk",
+      "mode": "strict",
+      "allowed_skills": ["context-window-guard", "research-task-orchestrator"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "limited",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/risk_reviewer.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/risk_reviewer.md",
+        "forbidden_behaviors": ["do not accept unverified success", "do not retry unchanged broad scope"],
+        "expected_output_contract": "risk flags, narrower fallback, stop condition"
+      },
+      "scope_limits": {
+        "max_files": 3,
+        "max_phases": 1,
+        "allowed_worker_templates": ["summary_markdown"]
+      },
+      "recovery_policy": {
+        "overflow": "force narrower replan",
+        "router_error": "validate endpoint before retry",
+        "false_success": "block as FALSE_SUCCESS_BLOCKED",
+        "timeout": "mark CHILD_TIMEOUT"
+      }
+    },
+    "decision_agent": {
+      "profile_id": "decision_agent",
+      "display_name": "Decision Agent",
+      "purpose": "Choose accept, replan, repair, or escalate from bounded evidence.",
+      "role_pack": "decision",
+      "mode": "strict",
+      "allowed_skills": ["research-task-orchestrator"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "none",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/decision_agent.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/decision_agent.md",
+        "forbidden_behaviors": ["do not invent missing evidence", "do not override failed verification"],
+        "expected_output_contract": "decision, reason, required next action"
+      },
+      "scope_limits": {
+        "max_files": 2,
+        "max_phases": 1,
+        "allowed_worker_templates": ["summary_markdown"]
+      },
+      "recovery_policy": {
+        "overflow": "use checkpoint only",
+        "router_error": "escalate after bounded retry",
+        "false_success": "reject",
+        "timeout": "escalate"
+      }
+    },
+    "research_agent": {
+      "profile_id": "research_agent",
+      "display_name": "Research Agent",
+      "purpose": "Extract bounded evidence and traceable claims.",
+      "role_pack": "research",
+      "mode": "strict",
+      "allowed_skills": ["context-window-guard", "research-task-orchestrator"],
+      "allowed_mcp_groups": ["readonly-research"],
+      "tool_policy": "limited",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/research_agent.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/research_agent.md",
+        "forbidden_behaviors": ["do not edit final synthesis", "do not make claims without evidence refs"],
+        "expected_output_contract": "evidence bundle, key claims, confidence, limitations"
+      },
+      "scope_limits": {
+        "max_files": 3,
+        "max_phases": 1,
+        "allowed_worker_templates": ["summary_markdown", "auto"]
+      },
+      "recovery_policy": {
+        "overflow": "split evidence source set",
+        "router_error": "return ROUTER_ERROR",
+        "false_success": "repair claim evidence",
+        "timeout": "return CHILD_TIMEOUT"
+      }
+    },
+    "synthesis_agent": {
+      "profile_id": "synthesis_agent",
+      "display_name": "Synthesis Agent",
+      "purpose": "Draft concise artifacts from verified evidence and claim ledger.",
+      "role_pack": "synthesis",
+      "mode": "strict",
+      "allowed_skills": ["research-task-orchestrator"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "limited",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/synthesis_agent.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/synthesis_agent.md",
+        "forbidden_behaviors": ["do not use raw dumps as primary input", "do not add unsupported claims"],
+        "expected_output_contract": "short final artifact, takeaway, uncertainty statement"
+      },
+      "scope_limits": {
+        "max_files": 3,
+        "max_phases": 1,
+        "allowed_worker_templates": ["summary_markdown", "auto"]
+      },
+      "recovery_policy": {
+        "overflow": "use checkpoint and claim ledger only",
+        "router_error": "retry once with shorter output",
+        "false_success": "repair summary fidelity",
+        "timeout": "return CHILD_TIMEOUT"
+      }
+    },
+    "reviewer_worker": {
+      "profile_id": "reviewer_worker",
+      "display_name": "Reviewer Worker",
+      "purpose": "Verify artifacts, evidence coverage, and profile policy compliance.",
+      "role_pack": "reviewer",
+      "mode": "strict",
+      "allowed_skills": ["research-task-orchestrator"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "none",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/reviewer_worker.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/reviewer_worker.md",
+        "forbidden_behaviors": ["do not invent missing facts", "do not accept missing evidence"],
+        "expected_output_contract": "ACCEPTED, REPAIR_REQUIRED, REPLAN_REQUIRED, or FALSE_SUCCESS_BLOCKED with evidence"
+      },
+      "scope_limits": {
+        "max_files": 3,
+        "max_phases": 1,
+        "allowed_worker_templates": []
+      },
+      "recovery_policy": {
+        "overflow": "use checkpoint and claim ledger",
+        "router_error": "escalate",
+        "false_success": "block",
+        "timeout": "escalate"
+      }
+    },
+    "executor_backend": {
+      "profile_id": "executor_backend",
+      "display_name": "Backend Executor",
+      "purpose": "Make small backend or script changes inside a bounded file set.",
+      "role_pack": "executor",
+      "mode": "strict",
+      "allowed_skills": ["context-window-guard"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "limited",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/executor_backend.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/executor_backend.md",
+        "forbidden_behaviors": ["do not modify files outside assigned scope", "do not skip test evidence"],
+        "expected_output_contract": "changed files, test output, claim/evidence handoff"
+      },
+      "scope_limits": {
+        "max_files": 1,
+        "max_phases": 1,
+        "allowed_worker_templates": ["auto", "managed_single_file"]
+      },
+      "recovery_policy": {
+        "overflow": "reduce to one file",
+        "router_error": "return ROUTER_ERROR",
+        "false_success": "repair or fail",
+        "timeout": "return CHILD_TIMEOUT"
+      }
+    },
+    "executor_docs": {
+      "profile_id": "executor_docs",
+      "display_name": "Docs Executor",
+      "purpose": "Make small documentation changes from bounded evidence.",
+      "role_pack": "executor",
+      "mode": "strict",
+      "allowed_skills": ["context-window-guard", "research-task-orchestrator"],
+      "allowed_mcp_groups": [],
+      "tool_policy": "limited",
+      "settings_overlay": ".claude/skills/research-task-orchestrator/agents/settings/executor_docs.json",
+      "instruction_contract": {
+        "role_prompt": ".claude/skills/research-task-orchestrator/agents/roles/executor_docs.md",
+        "forbidden_behaviors": ["do not add unsupported claims", "do not edit outside assigned docs"],
+        "expected_output_contract": "docs change, claim/evidence handoff, uncertainty notes"
+      },
+      "scope_limits": {
+        "max_files": 2,
+        "max_phases": 1,
+        "allowed_worker_templates": ["auto", "summary_markdown", "managed_single_file"]
+      },
+      "recovery_policy": {
+        "overflow": "split document scope",
+        "router_error": "return ROUTER_ERROR",
+        "false_success": "repair evidence refs",
+        "timeout": "return CHILD_TIMEOUT"
+      }
+    }
+  }
+}

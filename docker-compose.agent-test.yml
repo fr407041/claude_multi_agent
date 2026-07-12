@@ -1,0 +1,32 @@
+services:
+  multi-agent-current-folder-test:
+    image: multi-agent-claude-router:local
+    container_name: multi-agent-current-folder-test
+    restart: "no"
+    environment:
+      OLLAMA_BASE_URL: http://192.168.100.112:11435
+      MODEL_NAME: devstral-small-2:24b
+      START_CONTAINER_OLLAMA: "false"
+      TASK_EXECUTOR: claude-code
+      RUN_REPO_SMOKE_ON_TASK: "false"
+      MULTI_AGENT_REPO: /workspace/multi_agent_claude_code
+      RUNS_DIR: /runs
+      API_HOST: 0.0.0.0
+      API_PORT: "8080"
+      ROUTER_PORT: "3456"
+      CCR_WEB_PORT: "3458"
+      API_TIMEOUT_MS: "1800000"
+      API_KEY: local-router-token
+      ANTHROPIC_AUTH_TOKEN: local-router-token
+      ROUTER_MAX_TOKENS: "4096"
+      AI_COMPANY_ALLOWED_NETWORK_HOSTS: "127.0.0.1,localhost,www.ptt.cc,ptt.cc"
+    ports:
+      - "18080:8080"
+      - "13456:3456"
+      - "13458:3458"
+      - "15175:5174"
+      - "18011:8010"
+    volumes:
+      - ./:/workspace/multi_agent_claude_code
+      - ./agent-test-runs:/runs
+      - ./agent-test-runtime/run_task.sh:/app/runtime/run_task.sh:ro

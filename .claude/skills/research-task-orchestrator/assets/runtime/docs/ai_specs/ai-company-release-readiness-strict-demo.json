@@ -1,0 +1,96 @@
+{
+  "id": "ai-company-release-readiness-strict-demo",
+  "task_type": "compliance",
+  "agent_profile_mode": "strict",
+  "goal": "Assess release readiness for a small internal AI-company dashboard rollout using strict custom subagents, bounded evidence, claim ledger, reviewer verification, watchdog, and memory guard.",
+  "strategy": "Use strict profiled agents to extract evidence, assess operational risk, synthesize a release decision, and verify that no unsupported release claim is accepted.",
+  "scope_subdir": "tests/fixtures/ai_company_release_readiness_demo",
+  "scope_copy_from": "tests/fixtures/ai_company_release_readiness_demo",
+  "prep_command": "python3 {root}/scripts/prepare_common_research_case.py {scope_path}",
+  "post_verify_command": "python3 {root}/scripts/verify_common_research_artifact.py {scope_path}",
+  "jobs": [
+    {
+      "id": "job-001",
+      "title": "Extract release evidence",
+      "owner_role": "research_agent",
+      "agent_profile": "research_agent",
+      "instruction": "Write research_evidence.md as exactly 3 short bullets plus 1 short takeaway sentence. Use only the prepared evidence context. Include test evidence, blocker evidence, and rollback evidence. Mention 42 unit tests, 11 backend API tests, 4 of 5 router prompts, B1, B2, and 15 minutes. Keep under 130 words.",
+      "files": [
+        "research_evidence.md"
+      ],
+      "worker_template": "summary_markdown",
+      "template_context_files": [
+        "summary_compact_context.txt"
+      ],
+      "success_check": "research_evidence.md captures bounded release evidence with concrete numeric support and limitations.",
+      "require_change": true,
+      "test_command": ""
+    },
+    {
+      "id": "job-002",
+      "title": "Assess operational release risks",
+      "owner_role": "risk_reviewer",
+      "agent_profile": "risk_reviewer",
+      "instruction": "Write risk_review.md as exactly 3 short bullets plus 1 short takeaway sentence. Use only the prepared evidence context. Cover token overflow, router partial response, watchdog recovery, false success, and the two blockers B1 and B2. Keep under 130 words.",
+      "files": [
+        "risk_review.md"
+      ],
+      "worker_template": "summary_markdown",
+      "template_context_files": [
+        "summary_compact_context.txt"
+      ],
+      "success_check": "risk_review.md identifies release risks and bounded mitigations without broad context.",
+      "require_change": true,
+      "test_command": ""
+    },
+    {
+      "id": "job-003",
+      "title": "Draft release decision",
+      "owner_role": "decision_agent",
+      "agent_profile": "decision_agent",
+      "instruction": "Write release_decision.md as exactly 3 short bullets plus 1 short takeaway sentence. Use only the prepared evidence context. The decision must be conditional go, not clean go, until B1 and B2 are closed. Mention evidence, rollback, uncertainty, router, and overflow. Keep under 130 words.",
+      "files": [
+        "release_decision.md"
+      ],
+      "worker_template": "summary_markdown",
+      "template_context_files": [
+        "summary_compact_context.txt"
+      ],
+      "success_check": "release_decision.md gives a bounded conditional go/no-go decision with reasons.",
+      "require_change": true,
+      "test_command": ""
+    },
+    {
+      "id": "job-004",
+      "title": "Synthesize final release readiness summary",
+      "owner_role": "synthesis_agent",
+      "agent_profile": "synthesis_agent",
+      "instruction": "Write summary.md as exactly 3 short bullets plus 1 short takeaway sentence. Use only the prepared evidence context. Required content: conditional go; evidence from 42 unit tests, 11 backend API tests, and 4 of 5 router prompts; blockers B1 and B2; token overflow mitigation; router partial-response risk; rollback in 15 minutes; uncertainty due to missing live strict-profile drill and missing 8-hour soak. Keep under 160 words. Do not add headings.",
+      "files": [
+        "summary.md"
+      ],
+      "worker_template": "summary_markdown",
+      "template_context_files": [
+        "summary_compact_context.txt"
+      ],
+      "success_check": "summary.md satisfies the release readiness artifact contract with evidence, risk, decision, rollback, and uncertainty.",
+      "require_change": true,
+      "test_command": ""
+    }
+  ],
+  "expectations": {
+    "meeting_status": "MEETING_READY",
+    "min_reviewer_verdict_count": 4,
+    "min_accepted_count": 4,
+    "max_reassignment_count": 1,
+    "max_execution_jobs_run": 8,
+    "require_bounded_scope_rate": 1.0,
+    "require_status_file_coverage_rate": 1.0,
+    "require_loop_bounded": true,
+    "require_post_verify_all_passed": true,
+    "min_artifact_score": 1.0,
+    "require_profile_mode": "strict",
+    "require_profile_attachment": true,
+    "require_no_profile_policy_violations": true
+  }
+}
