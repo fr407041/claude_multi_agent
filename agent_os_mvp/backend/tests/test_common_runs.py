@@ -103,6 +103,50 @@ class CommonRunsAdapterTest(unittest.TestCase):
         self.assertIn("do not accept prose-only output", gate["user_hint"])
         self.assertEqual("ARTIFACT_NOT_CREATED_BY_MODEL", gate["failure_category"])
 
+    def test_micro_gate_windows_host_path_maps_to_watched_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            run_set = root / "micro-gates-20260712T040506Z"
+            run_set.mkdir()
+            run_dir = root / "run-c"
+            artifact = run_dir / "ptt-stock-live" / "urls.json"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(json.dumps(["https://www.ptt.cc/bbs/Stock/M.1234567890.A.ABC.html"] * 5), encoding="utf-8")
+            verifier = run_set / "gate-C" / "verifier-result.json"
+            verifier.parent.mkdir()
+            verifier.write_text(json.dumps({"pass": True}), encoding="utf-8")
+            summary = {
+                "run_set_id": run_set.name,
+                "run_set_dir": "D:\\repo\\agent-test-runs\\" + run_set.name,
+                "started_at_utc": "2026-07-12T04:05:06Z",
+                "finished_at_utc": "2026-07-12T04:06:06Z",
+                "pass": True,
+                "gates": [
+                    {
+                        "gate": "C",
+                        "api_status": "succeeded",
+                        "return_code": 0,
+                        "verifier_pass": True,
+                        "verifier_exit_code": 0,
+                        "run_dir": "D:\\repo\\agent-test-runs\\run-c",
+                        "verifier_result_path": "D:\\repo\\agent-test-runs\\" + run_set.name + "\\gate-C\\verifier-result.json",
+                    }
+                ],
+            }
+            (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(root / "results")}, clear=False):
+                detail = get_common_run_detail(run_set.name)
+
+        gate = detail["technical_details"]["validation_details"][0]
+        actual = gate["actual_artifact"]
+        self.assertTrue(actual["exists"])
+        self.assertIn("original_candidate_paths", actual)
+        self.assertEqual(str(artifact), actual["path"])
+        run_directory = gate["technical_paths"][1]
+        self.assertTrue(run_directory["exists"])
+        self.assertIn("original_path", run_directory)
+
     def test_micro_gate_all_pass_is_completed(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             run_set = Path(tempdir) / "micro-gates-20260712T020304Z"

@@ -94,6 +94,14 @@ Completed runs show:
 The dashboard uses manual refresh by default so users can inspect a result
 without the page flickering between stale and live states.
 
+Watched artifact roots:
+
+- `AI_COMPANY_RESULTS_ROOT` defaults to `./results/ai_company_task_harness`
+- `MICRO_GATES_RUNS_ROOT` defaults to `./agent-test-runs`
+- `/health` reports the exact roots the dashboard is reading.
+- If an older run records a Windows host path, the dashboard normalizes it back
+  to the mounted project root before checking whether an artifact exists.
+
 Default local ports:
 
 ```env
@@ -132,6 +140,16 @@ default demo is a shopping-site package because it is easy for humans to review:
 `shopping-site/app.js`, and `shopping-site/README.md`. The architecture is not
 shopping-specific; it is a common "generated outputs + verification evidence"
 demo profile.
+
+Deterministic common demo:
+
+```bash
+bash scripts/run-shopping-site-common-demo.sh mock
+```
+
+Mock mode does not prove model quality. It proves the installed repo, generated
+output verifier, result format, and dashboard display can complete on a clean
+machine without depending on a live provider.
 
 Dashboard verification:
 

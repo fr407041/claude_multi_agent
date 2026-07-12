@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -46,11 +47,29 @@ app.include_router(api_router)
 def checkout_marker():
     dashboard_root = Path(__file__).resolve().parents[2]
     project_root = get_project_root()
+    micro_gates_root = os.getenv("MICRO_GATES_RUNS_ROOT", "").strip()
+    if micro_gates_root:
+        micro_root = Path(micro_gates_root).expanduser()
+        if not micro_root.is_absolute():
+            micro_root = project_root / micro_root
+    else:
+        micro_root = project_root / "agent-test-runs"
+    result_root = get_results_root()
     return {
         "status": "ok",
         "app": "agent_os_mvp",
         "app_version": app.version,
         "app_root": str(dashboard_root),
         "project_root": str(project_root),
-        "result_root": str(get_results_root()),
+        "result_root": str(result_root),
+        "results_root": str(result_root),
+        "micro_gates_root": str(micro_root),
+        "watched_roots": {
+            "AI_COMPANY_RESULTS_ROOT": str(result_root),
+            "MICRO_GATES_RUNS_ROOT": str(micro_root),
+        },
+        "watched_root_exists": {
+            "AI_COMPANY_RESULTS_ROOT": result_root.exists(),
+            "MICRO_GATES_RUNS_ROOT": micro_root.exists(),
+        },
     }

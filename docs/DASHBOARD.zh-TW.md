@@ -1,10 +1,10 @@
 # Dashboard 使用說明
 
-Dashboard 是 common agent task observer。它只讀取目前專案內的 artifacts，不負責啟動模型、不修改 Claude/Router，也不替使用者選 model。
+Dashboard 是 common agent task observer。它只讀目前專案內的 artifacts，不負責啟動模型、不修改 Claude/Router，也不替使用者選 model。
 
 ## Ubuntu 22.04 common path
 
-第一次安裝請用 install skill：
+第一次安裝請使用 install skill，或直接執行：
 
 ```bash
 bash skills/install-multi-agent-runtime/scripts/install.sh
@@ -34,41 +34,43 @@ http://127.0.0.1:18010/health
 bash agent_os_mvp/stop-dashboard.sh
 ```
 
-Smoke check：
+## Dashboard 讀哪些資料
+
+預設 watched roots：
+
+- `AI_COMPANY_RESULTS_ROOT=./results/ai_company_task_harness`
+- `MICRO_GATES_RUNS_ROOT=./agent-test-runs`
+
+`/health` 會回傳實際 roots。若舊 run summary 內含 Windows host path，Dashboard 會先轉成目前 mounted project root 再檢查 artifact 是否存在。
+
+## 使用者體驗原則
+
+- 預設手動 refresh，避免你正在看結果時畫面跳動。
+- 首頁只回答：完成了嗎、卡在哪、產出在哪、能不能信、下一步是什麼。
+- `Generated outputs` 顯示檔案、大小、修改時間與安全預覽。
+- meeting、raw logs、verifier JSON、internal error code 放在 technical details。
+
+## Common demo
+
+Deterministic demo：
 
 ```bash
-bash agent_os_mvp/smoke-dashboard.sh
+bash scripts/run-shopping-site-common-demo.sh mock
 ```
 
-## 預設行為
+它不證明模型能力；它證明安裝、verifier、result format 與 Dashboard 顯示可以穩定完成。
 
-- 手動 refresh，不自動輪詢造成畫面跳動。
-- completed run 顯示 `Review outputs`。
-- `Generated outputs` 顯示實際產物：存在狀態、類型、大小、修改時間、安全預覽。
-- meeting / raw logs / verifier JSON 放在可展開技術細節。
-- 沒有 run artifacts 時顯示空狀態，不視為 dashboard 失敗。
-
-## Port
-
-預設：
-
-```env
-DASHBOARD_BACKEND_PORT=18010
-DASHBOARD_FRONTEND_PORT=15174
-```
-
-臨時覆蓋：
+Live demo：
 
 ```bash
-AGENT_OS_BACKEND_PORT=28010 \
-AGENT_OS_FRONTEND_PORT=25174 \
-AGENT_OS_PUBLIC_API_BASE_URL=http://127.0.0.1:28010 \
-bash agent_os_mvp/start-dashboard.sh
+bash scripts/run-shopping-site-common-demo.sh live
 ```
+
+它會使用使用者自己的 Claude/Router/LLM 設定。若 live agent 沒產出檔案，Dashboard 應顯示 `Agent did not create the expected file.`，不得顯示為完成。
 
 ## Advanced: Docker Compose
 
-Docker Compose 只給 CI、維護者或隔離複現使用，不是 common install path。
+Docker Compose 只給 CI、開發或維護者使用，不是 common install path。
 
 ```bash
 cd agent_os_mvp

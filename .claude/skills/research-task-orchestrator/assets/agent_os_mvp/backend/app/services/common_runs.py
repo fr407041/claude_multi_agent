@@ -50,17 +50,43 @@ def _load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
 def _path_info(path: str | Path | None, label: str) -> dict[str, Any] | None:
     if not path:
         return None
-    candidate = Path(str(path))
-    kind = "directory" if candidate.exists() and candidate.is_dir() else "file"
-    return {
+    original = str(path)
+    candidate = _normalize_artifact_path(original)
+    exists = candidate.exists()
+    kind = "directory" if exists and candidate.is_dir() else "file"
+    info = {
         "label": label,
         "path": str(candidate),
-        "exists": candidate.exists(),
+        "exists": exists,
         "kind": kind,
         "type": _artifact_type(candidate, kind),
-        "size_bytes": candidate.stat().st_size if candidate.exists() and candidate.is_file() else None,
-        "modified_at": datetime.fromtimestamp(candidate.stat().st_mtime, tz=timezone.utc).isoformat() if candidate.exists() else None,
+        "size_bytes": candidate.stat().st_size if exists and candidate.is_file() else None,
+        "modified_at": datetime.fromtimestamp(candidate.stat().st_mtime, tz=timezone.utc).isoformat() if exists else None,
     }
+    if original != str(candidate):
+        info["original_path"] = original
+    return info
+
+
+def _normalize_artifact_path(path: str | Path) -> Path:
+    candidate = Path(str(path))
+    if candidate.exists():
+        return candidate
+
+    text = str(path).replace("\\", "/")
+    mappings = [
+        ("/agent-test-runs/", _micro_gates_root()),
+        ("agent-test-runs/", _micro_gates_root()),
+        ("/results/ai_company_task_harness/", get_results_root()),
+        ("results/ai_company_task_harness/", get_results_root()),
+    ]
+    for marker, root in mappings:
+        if marker in text:
+            tail = text.split(marker, 1)[1].lstrip("/")
+            mapped = root / tail
+            if mapped.exists() or not candidate.is_absolute():
+                return mapped
+    return candidate
 
 
 def _artifact_type(path: Path, kind: str = "file") -> str:
@@ -148,7 +174,12 @@ def _micro_gate_run_dir(gate: dict[str, Any]) -> Path | None:
     value = gate.get("run_dir")
     if not value:
         return None
-    return Path(str(value))
+    return _normalize_artifact_path(str(value))
+
+
+def _micro_gate_original_run_dir(gate: dict[str, Any]) -> str | None:
+    value = gate.get("run_dir")
+    return str(value) if value else None
 
 
 def _micro_gate_expected_artifact_info(gate: dict[str, Any]) -> dict[str, Any] | None:
@@ -164,6 +195,9 @@ def _micro_gate_expected_artifact_info(gate: dict[str, Any]) -> dict[str, Any] |
         return None
     info["expected_path"] = expected
     info["candidate_paths"] = [str(item) for item in candidates]
+    original_run_dir = _micro_gate_original_run_dir(gate)
+    if original_run_dir and original_run_dir != str(run_dir):
+        info["original_candidate_paths"] = [str(Path(original_run_dir) / expected), str(Path(original_run_dir) / "worktree" / expected)]
     return info
 
 
@@ -732,6 +766,11 @@ def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
         summary_paths = sorted(root.glob("micro-gates-*/run-summary.json"), key=lambda path: path.stat().st_mtime, reverse=True)
         for summary_path in summary_paths[:20]:
             runs.append(_common_micro_gate_run(summary_path))
+    seen = {str(item.get("run_id")) for item in runs}
+    for item in _collect_direct_ai_company_runs():
+        if str(item.get("run_id")) not in seen:
+            runs.append(item)
+            seen.add(str(item.get("run_id")))
     if connection is not None:
         try:
             goal_rows = connection.execute("SELECT * FROM goals ORDER BY id DESC LIMIT 10").fetchall()
@@ -746,11 +785,6 @@ def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
                 runs.append(_common_ai_company_run(item))
         except Exception as exc:  # pragma: no cover - defensive adapter isolation
             warnings.append(f"Could not load ai-company runs: {exc}")
-    seen = {str(item.get("run_id")) for item in runs}
-    for item in _collect_direct_ai_company_runs():
-        if str(item.get("run_id")) not in seen:
-            runs.append(item)
-            seen.add(str(item.get("run_id")))
     runs.sort(key=_sort_key, reverse=True)
     compact_runs = [_compact_run(item) for item in runs[:20]]
     latest_run = compact_runs[0] if compact_runs else None

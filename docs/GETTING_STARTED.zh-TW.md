@@ -1,30 +1,27 @@
-# Getting Started：Ubuntu 22.04 Common Path
+# Getting Started（Ubuntu 22.04）
 
-這份文件只描述一般使用者路徑：先安裝，再使用。你的 Claude Code / Router / LLM / output token 設定仍由你自己的環境決定，本專案不替你強制指定。
+這個 repo 的 common path 很簡單：
+
+1. 用安裝 skill 準備本機 runtime 與 Dashboard。
+2. 用操作 skill 執行 agent 任務。
+3. 用 Dashboard 看結果、產出、驗證與下一步。
+
+本專案不替你指定 Claude、Router、model 或 output token；那些設定以你的電腦既有環境為準。
 
 ## 1. 安裝
-
-在 repo root 執行：
 
 ```bash
 bash skills/install-multi-agent-runtime/scripts/install.sh
 ```
 
-安裝 skill 會做：
+安裝流程會：
 
 - 建立 `.env`
 - 建立 `agent-runs/`、`results/`、`logs/`
-- 執行 doctor / strict install verification
-- 在 `agent_os_mvp/` 準備 dashboard backend/frontend
-- 確認 operation skill 存在
+- 準備 Dashboard backend/frontend dependencies
+- 檢查 `research-task-orchestrator` operation skill 是否存在
 
-安裝 skill 不會做：
-
-- 修改全域 Claude Code 設定
-- 修改 Router/provider/model/output token
-- 安裝 Ollama 或下載模型
-
-## 2. 啟動 dashboard
+## 2. 啟動 Dashboard
 
 ```bash
 bash agent_os_mvp/start-dashboard.sh
@@ -36,40 +33,46 @@ bash agent_os_mvp/start-dashboard.sh
 http://127.0.0.1:15174/
 ```
 
-Dashboard 預設採手動 refresh，避免你正在看結果時畫面跳來跳去。
+Dashboard 採手動 refresh，避免你正在看結果時畫面跳來跳去。
 
-## 3. 使用 operation skill
+## 3. 先跑 deterministic common demo
 
-安裝完成後，日常任務使用 operation skill：
-
-```text
-Use the research-task-orchestrator skill to run: <your task>
+```bash
+bash scripts/run-shopping-site-common-demo.sh mock
 ```
 
-它負責 agent meeting、任務拆分、worker 執行、artifact 驗證與 dashboard 報告；不負責安裝 repo，也不修改你的 Claude 環境。
+mock demo 不證明模型能力；它證明安裝、verifier、result format 與 Dashboard display 可以在乾淨環境穩定完成。
 
-## 4. Common live demo
-
-若要確認 live agent 可以「先討論、再產出、再驗證、再讓 dashboard 顯示結果」，使用 common demo：
+## 4. 再跑 live common demo
 
 ```bash
 bash scripts/run-shopping-site-common-demo.sh live
 ```
 
-這個 demo 會要求 agent 產生一包靜態輸出：
+這會用你的既有 Claude/Router/LLM 設定，讓 agent 先進行 bounded meeting，再產生一組可人工審查的 generated outputs，最後由 deterministic verifier 驗證。
+
+目前預設 demo 會產生：
 
 - `shopping-site/index.html`
 - `shopping-site/styles.css`
 - `shopping-site/app.js`
 - `shopping-site/README.md`
 
-購物網站只是容易人工檢查的 common 生成任務範例，不代表 dashboard 或 runtime 只服務購物網站。
+購物網站只是容易人工檢查的 common 生成任務範例；Dashboard 和 runtime 不綁定這個情境。
 
-## 5. 驗證
+## 5. Dashboard 讀哪裡
 
-```bash
-python3 scripts/verify_install.py --strict --json
-bash agent_os_mvp/smoke-dashboard.sh
+預設 watched roots：
+
+- `AI_COMPANY_RESULTS_ROOT=./results/ai_company_task_harness`
+- `MICRO_GATES_RUNS_ROOT=./agent-test-runs`
+
+可用健康檢查確認：
+
+```text
+http://127.0.0.1:18010/health
 ```
 
-PTT Stock micro-gates 保留為 legacy external-site stress test。它很適合抓弱模型與外部網站不穩問題，但不再作為一般安裝成功的唯一 live acceptance。
+## 6. Legacy stress test
+
+PTT Stock micro-gates 是 external-site stress test。它可以測模型與外部網站處理能力，但不再作為 common install/live demo 的唯一通過條件。

@@ -86,6 +86,29 @@ function Get-LocalRunDir($Status, $RunId) {
   return Join-Path $Root "agent-test-runs/$RunId"
 }
 
+function Get-NestedFailureCategory($Final, $RunDir, $Verifier) {
+  foreach ($candidate in @($Final.failure_category, $Final.result.failure_category, $Final.failureCategory)) {
+    if ($candidate) { return [string]$candidate }
+  }
+  foreach ($candidate in @($Verifier.failure_category, $Verifier.failureCategory)) {
+    if ($candidate) { return [string]$candidate }
+  }
+  $stdoutPath = Join-Path $RunDir 'stdout.log'
+  $stderrPath = Join-Path $RunDir 'stderr.log'
+  $combined = ''
+  foreach ($path in @($stdoutPath, $stderrPath)) {
+    if (Test-Path $path) {
+      $combined += "`n" + (Get-Content $path -Raw)
+    }
+  }
+  foreach ($category in @('ARTIFACT_NOT_CREATED_BY_MODEL', 'ARTIFACT_NOT_ATTEMPTED', 'ARTIFACT_CONTRACT_FAILED')) {
+    if ($combined -match $category) {
+      return $category
+    }
+  }
+  return ''
+}
+
 function Test-RuntimeOverride {
   $markerDir = Join-Path $RunSetDir 'runtime-marker'
   New-Item -ItemType Directory -Force -Path $markerDir | Out-Null
@@ -328,6 +351,16 @@ try {
     $verifierRaw | Set-Content -Encoding utf8 (Join-Path $gateDir 'verifier-result.json')
     $verifier = $null
     try { $verifier = ($verifierRaw | Out-String | ConvertFrom-Json) } catch {}
+    $nestedFailureCategory = Get-NestedFailureCategory $final $localRunDir $verifier
+    $failureCategory = if ($nestedFailureCategory) {
+      $nestedFailureCategory
+    } elseif ($final.status -eq 'succeeded' -and $verifierExit -ne 0) {
+      'FALSE_SUCCESS_BLOCKED'
+    } elseif ($verifierExit -ne 0) {
+      'ARTIFACT_CONTRACT_FAILED'
+    } else {
+      ''
+    }
 
     $gateResult = [ordered]@{
       gate = $gate
@@ -338,11 +371,12 @@ try {
       verifier_exit_code = $verifierExit
       verifier_pass = ($verifierExit -eq 0)
       false_success_blocked = ($final.status -eq 'succeeded' -and $verifierExit -ne 0)
-      failure_category = if ($final.failure_category) { $final.failure_category } elseif ($final.status -eq 'succeeded' -and $verifierExit -ne 0) { 'FALSE_SUCCESS_BLOCKED' } elseif ($verifierExit -ne 0) { 'ARTIFACT_CONTRACT_FAILED' } else { '' }
+      failure_category = $failureCategory
+      failure_parent_category = if ($failureCategory -in @('ARTIFACT_NOT_CREATED_BY_MODEL', 'ARTIFACT_NOT_ATTEMPTED') -and $verifierExit -ne 0) { 'ARTIFACT_CONTRACT_FAILED' } else { '' }
       verifier_result_path = (Join-Path $gateDir 'verifier-result.json')
       verifier_source = $verifierResult.source
       runtime_verifier_path = $verifierResult.path
-      user_hint = if ($verifierExit -ne 0 -and $final.failure_category -eq 'ARTIFACT_NOT_CREATED_BY_MODEL') { 'The agent returned without creating the expected file. Rerun only this gate with a narrow create-the-file instruction; do not accept prose-only output.' } elseif ($gate -eq 'D' -and $verifierExit -ne 0) { 'Gate D must create ptt-stock-live/article.json from one of the Gate C seed URLs. Check claude-attempt logs and artifact snapshots in the run directory.' } else { '' }
+      user_hint = if ($verifierExit -ne 0 -and $failureCategory -in @('ARTIFACT_NOT_CREATED_BY_MODEL', 'ARTIFACT_NOT_ATTEMPTED')) { 'The agent returned without creating the expected file. Rerun only this gate with a narrow create-the-file instruction; do not accept prose-only output.' } elseif ($gate -eq 'D' -and $verifierExit -ne 0) { 'Gate D must create ptt-stock-live/article.json from one of the Gate C seed URLs. Check claude-attempt logs and artifact snapshots in the run directory.' } else { '' }
     }
     if ($gate -eq 'D') {
       $gateResult.seed_urls = $gateContext.gate_c_urls

@@ -280,6 +280,156 @@ def sync_assignments_to_jobs(run_dir: Path, assignments: list[dict]) -> dict[str
     return job_map
 
 
+def shopping_site_mock_content(rel_file: str) -> str | None:
+    if rel_file == "shopping-site/index.html":
+        return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Common Demo Shop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <p class="eyebrow">Generated output package</p>
+    <h1>Common Demo Shop</h1>
+    <p>A small static storefront generated for review. No real checkout or payment processing is included.</p>
+  </header>
+  <main>
+    <section class="product-grid" aria-label="Products">
+      <article class="product-card" data-name="Notebook" data-price="12"><h2>Notebook</h2><p>$12</p><button class="add-to-cart">Add to cart</button></article>
+      <article class="product-card" data-name="Desk Lamp" data-price="36"><h2>Desk Lamp</h2><p>$36</p><button class="add-to-cart">Add to cart</button></article>
+      <article class="product-card" data-name="Travel Mug" data-price="18"><h2>Travel Mug</h2><p>$18</p><button class="add-to-cart">Add to cart</button></article>
+      <article class="product-card" data-name="Canvas Tote" data-price="24"><h2>Canvas Tote</h2><p>$24</p><button class="add-to-cart">Add to cart</button></article>
+    </section>
+    <aside class="cart-panel">
+      <h2>Cart</h2>
+      <p>Items: <strong id="cart-count">0</strong></p>
+      <p>Total: $<strong id="cart-total">0</strong></p>
+      <ul id="cart-items"></ul>
+      <button id="checkout-button">Checkout demo only</button>
+      <p id="checkout-message" role="status"></p>
+    </aside>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
+"""
+    if rel_file == "shopping-site/styles.css":
+        return """body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f5f7fb;
+}
+.hero {
+  padding: 48px 7vw 28px;
+  background: linear-gradient(135deg, #203354, #3f6fb5);
+  color: white;
+}
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; opacity: .8; }
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  padding: 32px 7vw;
+}
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+.product-card, .cart-panel {
+  background: white;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 14px 30px rgba(25, 39, 68, .12);
+}
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: #2458d3;
+  color: white;
+  cursor: pointer;
+}
+button:hover { background: #163fa3; }
+#cart-items { padding-left: 20px; }
+@media (max-width: 780px) {
+  main { grid-template-columns: 1fr; }
+}
+"""
+    if rel_file == "shopping-site/app.js":
+        return """const cartItems = [];
+const countEl = document.getElementById('cart-count');
+const totalEl = document.getElementById('cart-total');
+const listEl = document.getElementById('cart-items');
+const checkoutMessage = document.getElementById('checkout-message');
+
+function renderCart() {
+  const cartCount = cartItems.length;
+  const total = cartItems.reduce((sum, item) => sum + item.price, 0);
+  countEl.textContent = String(cartCount);
+  totalEl.textContent = String(total);
+  listEl.innerHTML = '';
+  cartItems.forEach((item) => {
+    const li = document.createElement('li');
+    li.textContent = `${item.name} — $${item.price}`;
+    listEl.appendChild(li);
+  });
+}
+
+document.querySelectorAll('.add-to-cart').forEach((button) => {
+  button.addEventListener('click', () => {
+    const card = button.closest('.product-card');
+    cartItems.push({
+      name: card.dataset.name,
+      price: Number(card.dataset.price)
+    });
+    checkoutMessage.textContent = '';
+    renderCart();
+  });
+});
+
+document.getElementById('checkout-button').addEventListener('click', () => {
+  checkoutMessage.textContent = 'Checkout stub: demo only, no real payment is processed.';
+});
+
+renderCart();
+"""
+    if rel_file == "shopping-site/README.md":
+        return """# Common Demo Shop
+
+This generated output package contains a small static shopping website MVP.
+
+## Files
+
+- `index.html` — product grid, cart panel, cart count, cart total, and checkout stub.
+- `styles.css` — responsive product-card and cart styling.
+- `app.js` — add-to-cart behavior, cart count updates, total calculation, and demo checkout message.
+- `README.md` — this review note.
+
+## Review
+
+Open `index.html` in a browser and click **Add to cart** on a few products. The cart count and total should update immediately.
+
+## Limitation
+
+The checkout button is a stub for review only. No real checkout, payment, account, or order processing is included.
+"""
+    if rel_file == "summary.md":
+        return """# Generated output package
+
+- Created a small static storefront with a product grid and cart panel.
+- Added dependency-free CSS and JavaScript for add-to-cart, cart count, and total updates.
+- Included a README explaining how to review the generated package and its no-payment limitation.
+
+Takeaway: the generated output package is ready for human review; checkout is a stub with no real payment processing.
+"""
+    return None
+
+
 def write_mock_status(run_dir: Path, job: dict, status: str, verification_note: str, changed_count: int = 0) -> Path:
     results_dir = run_dir / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -354,7 +504,10 @@ def write_mock_status(run_dir: Path, job: dict, status: str, verification_note: 
         for rel_file in job.get("outputs", job.get("files", [])):
             target = scope_path / rel_file
             target.parent.mkdir(parents=True, exist_ok=True)
-            if target.suffix.lower() == ".json":
+            deterministic_content = shopping_site_mock_content(str(rel_file))
+            if deterministic_content is not None:
+                target.write_text(deterministic_content, encoding="utf-8")
+            elif target.suffix.lower() == ".json":
                 target.write_text(json.dumps({"status": "pass", "goal_answered": True, "evidence": job.get("inputs", [])}, indent=2), encoding="utf-8")
             else:
                 target.write_text(f"# Goal result\n\nVerified result for the assigned goal using evidence from: {', '.join(job.get('inputs', [])) or 'declared scope'}.\n", encoding="utf-8")
