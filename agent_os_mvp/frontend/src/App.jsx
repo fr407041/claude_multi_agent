@@ -860,6 +860,61 @@ function PlanningDetails({ run }) {
   );
 }
 
+function FabCapabilityDetails({ run }) {
+  const policies = run?.technical_details?.fab_agents || [];
+  const blockedAttempts = run?.technical_details?.blocked_tool_attempts || [];
+  if (!policies.length && !blockedAttempts.length) return null;
+  return (
+    <details className="surface validation-details-shell" open>
+      <summary>Fab agent capability evidence</summary>
+      <p className="muted">
+        Fab users define persona/background. CIM capability policy decides effective skills, MCP groups, hooks, and tool boundaries.
+      </p>
+      <div className="validation-detail-list">
+        {policies.map((policy) => {
+          const agentBlocked = blockedAttempts.filter((item) => item.agent_id === policy.agent_id);
+          return (
+            <article key={policy.agent_id} className="validation-detail">
+              <div>
+                <strong>{policy.display_name || policy.agent_id}</strong>
+                <p>{policy.capability_display_name || policy.capability}</p>
+              </div>
+              <StatusPill value={agentBlocked.length ? `${agentBlocked.length} blocked` : "Allowed only"} />
+              <dl>
+                <dt>Policy source</dt>
+                <dd>{policy.policy_source || "CIM"}</dd>
+                <dt>Allowed skills</dt>
+                <dd>{renderList(policy.effective_allowed_skills || [])}</dd>
+                <dt>MCP groups</dt>
+                <dd>{renderList(policy.effective_allowed_mcp_groups || [])}</dd>
+                <dt>Allowed actions</dt>
+                <dd>{renderList(policy.allowed_actions || [])}</dd>
+              </dl>
+            </article>
+          );
+        })}
+        {blockedAttempts.map((attempt, index) => (
+          <article key={`blocked-${index}`} className="validation-detail validation-needs-attention">
+            <div>
+              <strong>Blocked attempt</strong>
+              <p>{attempt.agent_id || "Fab agent"}</p>
+            </div>
+            <StatusPill value="Blocked" />
+            <dl>
+              <dt>Action</dt>
+              <dd>{attempt.action || "n/a"}</dd>
+              <dt>Path</dt>
+              <dd>{attempt.path || "n/a"}</dd>
+              <dt>Reason</dt>
+              <dd>{attempt.reason || "Blocked by CIM policy."}</dd>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function CommonTaskDashboard({ run, runs, selectedRunId, onSelect, connectionState }) {
   const presentation = buildCommonPresentation(run);
   return (
@@ -875,6 +930,7 @@ function CommonTaskDashboard({ run, runs, selectedRunId, onSelect, connectionSta
       </section>
       <ValidationDetails run={run} />
       <PlanningDetails run={run} />
+      <FabCapabilityDetails run={run} />
       <CommonRecentRuns runs={runs} selectedRunId={selectedRunId} onSelect={onSelect} />
     </>
   );

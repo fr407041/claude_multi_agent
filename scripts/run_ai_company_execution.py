@@ -207,6 +207,16 @@ def run_worker_via_docker(run_dir: Path, worker_script: Path, job_path: Path) ->
 
     env = os.environ.copy()
     env["DOCKER_CONFIG"] = str(docker_config)
+    ccr_messages_url = env.get("CCR_MESSAGES_URL", "").strip()
+    anthropic_base_url = env.get("ANTHROPIC_BASE_URL", "").strip()
+    if not ccr_messages_url and anthropic_base_url:
+        ccr_messages_url = anthropic_base_url.rstrip("/") + "/v1/messages"
+    if not anthropic_base_url and ccr_messages_url:
+        anthropic_base_url = ccr_messages_url.split("/v1/messages", 1)[0].rstrip("/")
+    if not ccr_messages_url:
+        ccr_messages_url = "http://127.0.0.1:3456/v1/messages"
+    if not anthropic_base_url:
+        anthropic_base_url = "http://127.0.0.1:3456"
 
     cmd = [
         docker_bin,
@@ -234,7 +244,9 @@ def run_worker_via_docker(run_dir: Path, worker_script: Path, job_path: Path) ->
         "-e",
         "ANTHROPIC_AUTH_TOKEN=local-test-key",
         "-e",
-        "ANTHROPIC_BASE_URL=http://127.0.0.1:3456",
+        f"ANTHROPIC_BASE_URL={anthropic_base_url}",
+        "-e",
+        f"CCR_MESSAGES_URL={ccr_messages_url}",
         image,
         "bash",
         "-lc",

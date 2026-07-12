@@ -77,6 +77,8 @@ def _normalize_artifact_path(path: str | Path) -> Path:
     mappings = [
         ("/agent-test-runs/", _micro_gates_root()),
         ("agent-test-runs/", _micro_gates_root()),
+        ("/results/fab_agent_poc/", _fab_agent_poc_root()),
+        ("results/fab_agent_poc/", _fab_agent_poc_root()),
         ("/results/ai_company_task_harness/", get_results_root()),
         ("results/ai_company_task_harness/", get_results_root()),
     ]
@@ -128,6 +130,14 @@ def _micro_gates_root() -> Path:
         path = Path(configured).expanduser()
         return path if path.is_absolute() else get_project_root() / path
     return get_project_root() / "agent-test-runs"
+
+
+def _fab_agent_poc_root() -> Path:
+    configured = os.getenv("FAB_AGENT_POC_RESULTS_ROOT", "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+        return path if path.is_absolute() else get_project_root() / path
+    return get_project_root() / "results" / "fab_agent_poc"
 
 
 def _user_status_from_micro_summary(summary: dict[str, Any]) -> str:
@@ -724,6 +734,174 @@ def _common_agent_task_run(connection: Connection, goal_row: Any) -> dict[str, A
     }
 
 
+def _fab_status_to_user_status(summary: dict[str, Any]) -> str:
+    status = str(summary.get("overall_status") or "").lower()
+    if status == "pass":
+        return "Completed"
+    if status == "fail":
+        return "Needs attention"
+    return "Working"
+
+
+def _fab_output_artifacts(summary: dict[str, Any], include_artifacts: bool = True) -> tuple[list[dict[str, Any]], list[str]]:
+    if not include_artifacts:
+        return [], []
+    run_dir = _normalize_artifact_path(summary.get("run_dir") or "")
+    worktree = _normalize_artifact_path(summary.get("worktree") or (run_dir / "worktree"))
+    artifacts: list[dict[str, Any]] = []
+    output_paths: list[str] = []
+    for path, label, role, preview in [
+        (run_dir / "fab_poc_summary.json", "POC summary", "evidence", True),
+        (run_dir / "ai_company" / "meeting_decision.json", "Meeting decision", "evidence", True),
+        (run_dir / "ai_company" / "artifact_verify_report.json", "Verification report", "evidence", True),
+        (run_dir / "worktree" / "shopping-site", "Generated output folder", "output", False),
+        (run_dir / "worktree" / "shopping-site" / "index.html", "HTML deliverable", "output", True),
+        (run_dir / "worktree" / "shopping-site" / "styles.css", "Stylesheet", "output", True),
+        (run_dir / "worktree" / "shopping-site" / "app.js", "Implementation file", "output", True),
+        (run_dir / "worktree" / "shopping-site" / "README.md", "Review instructions", "output", True),
+    ]:
+        info = _path_info(path, label)
+        if not info:
+            continue
+        info["role"] = role
+        if preview and info.get("exists"):
+            info["preview"] = _preview_text(Path(info["path"]))
+        artifacts.append(info)
+        if role == "output":
+            try:
+                output_paths.append(str(Path(info["path"]).relative_to(run_dir)))
+            except ValueError:
+                output_paths.append(str(info["path"]))
+    for policy in summary.get("effective_policies") or []:
+        agent_id = policy.get("agent_id")
+        if not agent_id:
+            continue
+        for filename, label in [
+            ("effective-agent.json", "Effective agent policy"),
+            ("claude-settings.json", "Generated Claude settings"),
+            ("mcp-config.json", "Generated MCP config"),
+            ("audit.log", "Capability audit log"),
+        ]:
+            info = _path_info(run_dir / "agents" / str(agent_id) / filename, f"{agent_id}: {label}")
+            if info:
+                info["role"] = "policy evidence"
+                artifacts.append(info)
+    return artifacts, output_paths
+
+
+def _fab_agent_cards(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    blocked = summary.get("blocked_attempts") or []
+    cards: list[dict[str, Any]] = []
+    for policy in summary.get("effective_policies") or []:
+        agent_id = policy.get("agent_id") or "fab_agent"
+        agent_blocked = [item for item in blocked if item.get("agent_id") == agent_id]
+        cards.append(
+            {
+                "id": agent_id,
+                "name": policy.get("display_name") or agent_id,
+                "status": "done",
+                "current_activity": f"CIM capability: {policy.get('capability')} - blocked attempts: {len(agent_blocked)}",
+                "updated_at": summary.get("finished_at_utc"),
+                "capability": policy.get("capability"),
+                "allowed_skills": policy.get("effective_allowed_skills") or [],
+                "allowed_mcp_groups": policy.get("effective_allowed_mcp_groups") or [],
+                "blocked_attempts_count": len(agent_blocked),
+            }
+        )
+    return cards
+
+
+def _common_fab_agent_poc_run(summary_path: Path, include_artifacts: bool = True) -> dict[str, Any]:
+    summary, error = _load_json(summary_path)
+    run_id = summary_path.parent.name
+    if summary is None:
+        return {
+            "run_id": run_id,
+            "run_type": "fab_agent_poc",
+            "user_status": "Needs attention",
+            "headline": "Fab agent POC could not be read.",
+            "explanation": "The dashboard found a Fab agent POC run, but its summary file is malformed.",
+            "started_at": None,
+            "updated_at": _now(),
+            "progress": {"phase": "Verify", "current_step": "Read POC summary", "completed_steps": 0, "total_steps": 1, "percent": 0},
+            "agents": [],
+            "primary_result": {"summary": "No trusted result is available.", "deliverables": [], "output_paths": []},
+            "verification": {"status": "fail", "checks": [], "limitations": [error or "Unknown parse error."]},
+            "artifacts": [_path_info(summary_path, "POC summary")],
+            "next_action": {"label": "Review run files", "detail": "Open technical details and inspect the malformed Fab POC summary."},
+            "technical_details": {"warnings": [error], "source_path": str(summary_path)},
+        }
+
+    user_status = _fab_status_to_user_status(summary)
+    artifacts, output_paths = _fab_output_artifacts(summary, include_artifacts=include_artifacts)
+    acceptance = summary.get("acceptance") or {}
+    checks = [
+        {
+            "label": label.replace("_", " "),
+            "status": "pass" if passed else "fail",
+            "detail": "Verified." if passed else "This required POC condition did not pass.",
+        }
+        for label, passed in acceptance.items()
+    ]
+    blocked_count = len(summary.get("blocked_attempts") or [])
+    headline = "Fab agent capability POC completed and verified." if user_status == "Completed" else "Fab agent capability POC needs attention."
+    explanation = (
+        "Fab user persona was resolved into CIM-managed capabilities; allowed and blocked actions are recorded as runtime evidence."
+        if user_status == "Completed"
+        else f"Capability-boundary POC failed: {summary.get('failure_category') or 'unknown failure'}."
+    )
+    return {
+        "run_id": summary.get("run_id") or run_id,
+        "run_type": "fab_agent_poc",
+        "user_status": user_status,
+        "headline": headline,
+        "explanation": explanation,
+        "started_at": summary.get("started_at_utc"),
+        "updated_at": summary.get("finished_at_utc") or summary.get("started_at_utc"),
+        "progress": {
+            "phase": "Deliver" if user_status == "Completed" else "Verify",
+            "current_step": "Capability boundary and output package verified" if user_status == "Completed" else "Review failed POC evidence",
+            "completed_steps": 5 if user_status == "Completed" else 4,
+            "total_steps": 5,
+            "percent": 100 if user_status == "Completed" else 80,
+            "latest_activity": f"{blocked_count} blocked tool attempt(s) recorded.",
+        },
+        "agents": _fab_agent_cards(summary),
+        "primary_result": {
+            "summary": "CIM-controlled Fab agents produced a verified output package and recorded policy enforcement evidence." if user_status == "Completed" else explanation,
+            "findings": [
+                f"{len(summary.get('effective_policies') or [])} Fab agents resolved from user persona to CIM capabilities.",
+                f"{blocked_count} unauthorized action attempt(s) were blocked and audited.",
+                "Generated output package verified by deterministic checks." if (summary.get("verifier") or {}).get("all_passed") else "Generated output package did not pass verifier.",
+            ],
+            "deliverables": ["Generated outputs", "Meeting discussion", "Effective capability policies", "Audit logs", "Verifier report"],
+            "output_paths": output_paths,
+        },
+        "verification": {
+            "status": "pass" if user_status == "Completed" else "fail",
+            "checks": checks,
+            "limitations": [
+                "This POC verifies wrapper/config/audit/verifier boundaries. It does not claim a prompt alone is a hard security boundary.",
+                "Website development is a fixture; the dashboard schema is generic for generated output packages.",
+            ],
+        },
+        "artifacts": artifacts,
+        "next_action": {
+            "label": "Review outputs" if user_status == "Completed" else "Repair POC evidence",
+            "detail": "Inspect generated outputs, effective policies, generated MCP config, and blocked tool audit before trusting the run.",
+        },
+        "technical_details": {
+            "meeting": summary.get("meeting"),
+            "fab_agents": summary.get("effective_policies") or [],
+            "blocked_tool_attempts": summary.get("blocked_attempts") or [],
+            "audit_entries": summary.get("audit_entries") or [],
+            "verifier": summary.get("verifier"),
+            "raw_summary": summary,
+            "source_path": str(summary_path),
+        },
+    }
+
+
 def _sort_key(run: dict[str, Any]) -> str:
     return str(run.get("updated_at") or run.get("started_at") or "")
 
@@ -763,6 +941,11 @@ def _compact_run(run: dict[str, Any]) -> dict[str, Any]:
 def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
     runs: list[dict[str, Any]] = []
     warnings: list[str] = []
+    fab_root = _fab_agent_poc_root()
+    if fab_root.exists():
+        summary_paths = sorted(fab_root.glob("run-*/fab_poc_summary.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+        for summary_path in summary_paths[:20]:
+            runs.append(_common_fab_agent_poc_run(summary_path, include_artifacts=False))
     root = _micro_gates_root()
     if root.exists():
         summary_paths = sorted(root.glob("micro-gates-*/run-summary.json"), key=lambda path: path.stat().st_mtime, reverse=True)
@@ -799,6 +982,9 @@ def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
 
 
 def get_common_run_detail(run_id: str, connection: Connection | None = None) -> dict[str, Any]:
+    fab_summary = _fab_agent_poc_root() / run_id / "fab_poc_summary.json"
+    if fab_summary.is_file():
+        return _common_fab_agent_poc_run(fab_summary)
     root = _micro_gates_root()
     micro_summary = root / run_id / "run-summary.json"
     if micro_summary.is_file():

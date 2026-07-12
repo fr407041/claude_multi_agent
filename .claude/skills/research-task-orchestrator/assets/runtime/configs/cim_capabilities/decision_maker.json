@@ -1,0 +1,12 @@
+{
+  "id": "decision_maker",
+  "display_name": "Decision Maker",
+  "description": "Make a final decision from already produced evidence. No tools or MCP access.",
+  "allowed_skills": ["research-task-orchestrator"],
+  "allowed_mcp_groups": [],
+  "tool_policy": "none",
+  "allowed_actions": ["write_agent_artifact"],
+  "allowed_output_globs": ["agents/*/*", "ai_company/*"],
+  "blocked_actions": ["read_external", "write_project_file", "edit_project_file", "shell_command"],
+  "risk_level": "low"
+}

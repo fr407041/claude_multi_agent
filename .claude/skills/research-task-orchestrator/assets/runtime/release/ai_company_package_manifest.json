@@ -32,7 +32,7 @@
     },
     {
       "path": "scripts/run_ai_company_execution.py",
-      "sha256": "e4acb0d6b2a04253c1cf034c3c9f7de440f6d1ace9708b07d0b6d135b2b233a0"
+      "sha256": "9f13de0ad2859bc2bf06e5b5389c7b4e007840d495a52f9a5a0026bba40eaef6"
     },
     {
       "path": "scripts/run_ai_company_reviewer_worker.py",
@@ -302,7 +302,7 @@
     },
     {
       "path": "assets/agent_os_mvp/backend/app/main.py",
-      "sha256": "d53a2ffd44f9727a8ecc1977cfaa82bdfa6ec9c1aaddf06cd8edab0fdc97905e"
+      "sha256": "b8d0af69acf0dc554649d733025ddb477ca8b9f01307bfbc2516fb02e8e95628"
     },
     {
       "path": "assets/agent_os_mvp/backend/app/services/ai_company_monitor.py",
@@ -330,7 +330,7 @@
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/App.jsx",
-      "sha256": "91cf68ce47dcfef1c8e2554ee344865bf8ccf094eb183f59be2be08c1b35dc19"
+      "sha256": "bd122f2f66b80fef3d1794983b6ea6f870e40b697645e3694f8e4c65905add27"
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/styles.css",
@@ -338,7 +338,7 @@
     },
     {
       "path": "assets/agent_os_mvp/start-dashboard.sh",
-      "sha256": "efe198bbdf528145dc79e750ae91f173388d98028fa60dec783c2bb554717ec3"
+      "sha256": "b87ccb3b35cf66bb349140466b4e88e8bf9651c84b63c74f72dbb96106c50b5c"
     },
     {
       "path": "assets/agent_os_mvp/stop-dashboard.sh",

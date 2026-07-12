@@ -32,7 +32,7 @@
     },
     {
       "path": "scripts/run_ai_company_execution.py",
-      "sha256": "67f26293a29bae4bbf5da5f50444bdf829464b919aae90032cb8d6bab6f9e4f8"
+      "sha256": "9f13de0ad2859bc2bf06e5b5389c7b4e007840d495a52f9a5a0026bba40eaef6"
     },
     {
       "path": "scripts/run_ai_company_reviewer_worker.py",
@@ -302,7 +302,7 @@
     },
     {
       "path": "assets/agent_os_mvp/backend/app/main.py",
-      "sha256": "a245bcf12cad19fb3d1dbe719586cd2d79f5daaf6778d5af7a2780ff2a8f75b8"
+      "sha256": "b8d0af69acf0dc554649d733025ddb477ca8b9f01307bfbc2516fb02e8e95628"
     },
     {
       "path": "assets/agent_os_mvp/backend/app/services/ai_company_monitor.py",
@@ -330,7 +330,7 @@
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/App.jsx",
-      "sha256": "7cd3a4373869e147f6bc4ef384971e29e3600aa213cb8f2f1bcd0bbabe8c72d9"
+      "sha256": "bd122f2f66b80fef3d1794983b6ea6f870e40b697645e3694f8e4c65905add27"
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/styles.css",

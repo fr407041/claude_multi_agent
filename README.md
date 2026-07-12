@@ -163,6 +163,59 @@ Dashboard verification:
 bash agent_os_mvp/smoke-dashboard.sh
 ```
 
+## Fab Agent POC: Persona Is User-Owned, Capability Is CIM-Owned
+
+This POC proves a common governance pattern:
+
+- Fab users may define agent display name, background, domain context, tone, and
+  output style.
+- Fab users may only select a CIM-approved capability.
+- CIM developers own skills, MCP groups, hooks, tool actions, and output path
+  boundaries.
+- Runtime evidence, not agent self-reporting, decides whether the boundary was
+  enforced.
+
+List available CIM capabilities:
+
+```bash
+python3 scripts/list_cim_capabilities.py
+```
+
+Validate a Fab agent:
+
+```bash
+python3 scripts/validate_fab_agent.py fab_agents/examples/fab_product_planner
+```
+
+Resolve the effective runtime policy:
+
+```bash
+python3 scripts/resolve_fab_agent.py fab_agents/examples/fab_frontend_builder --out results/fab_agent_resolved
+```
+
+Run the capability-boundary POC:
+
+```bash
+python3 scripts/run_fab_agent_poc.py --case shopping-site --mode live
+```
+
+The POC uses website generation as a human-reviewable fixture. The generic
+contract is: agents discuss, produce a generated output package, record
+effective capability policy, record allowed/blocked actions, run deterministic
+verification, and show the evidence in the dashboard.
+
+Deterministic mode is available for clean-machine checks:
+
+```bash
+python3 scripts/run_fab_agent_poc.py --case shopping-site --mode mock
+```
+
+The dashboard reads these runs from:
+
+```env
+FAB_AGENT_POC_RESULTS_ROOT=./results/fab_agent_poc
+```
+
 Backend unit tests:
 
 ```bash
@@ -201,6 +254,10 @@ http://127.0.0.1:15174/
 - `scripts/verify_install.py`: repository verification
 - `scripts/run_ai_company_task_harness.py`: mock/live task harness
 - `scripts/run-agent-micro-gates.ps1`: precise live micro-gate runner
+- `scripts/list_cim_capabilities.py`: list CIM-approved capability choices
+- `scripts/validate_fab_agent.py`: reject Fab agent attempts to self-assign skills/MCP/hooks/tools
+- `scripts/resolve_fab_agent.py`: generate effective policy, Claude settings, MCP config, and audit log
+- `scripts/run_fab_agent_poc.py`: common capability-boundary POC runner
 - `scripts/verify_agent_micro_gate.py`: deterministic micro-gate verifier
 - `scripts/run-shopping-site-common-demo.sh`: common live generated-output demo
 - `scripts/verify_generated_output_package.py`: generated output package verifier

@@ -1,0 +1,12 @@
+{
+  "id": "artifact_reviewer",
+  "display_name": "Artifact Reviewer",
+  "description": "Inspect outputs, logs, and verifier evidence. Cannot modify deliverables.",
+  "allowed_skills": ["research-task-orchestrator"],
+  "allowed_mcp_groups": ["filesystem-readonly"],
+  "tool_policy": "review-only",
+  "allowed_actions": ["read_context", "write_agent_artifact", "run_verifier"],
+  "allowed_output_globs": ["agents/*/*", "ai_company/*"],
+  "blocked_actions": ["write_project_file", "edit_project_file", "shell_command"],
+  "risk_level": "low"
+}

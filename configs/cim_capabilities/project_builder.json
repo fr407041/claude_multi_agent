@@ -1,0 +1,12 @@
+{
+  "id": "project_builder",
+  "display_name": "Project Builder",
+  "description": "Create and edit bounded project deliverables and run local verification.",
+  "allowed_skills": ["research-task-orchestrator"],
+  "allowed_mcp_groups": ["filesystem-project-write"],
+  "tool_policy": "project-write",
+  "allowed_actions": ["read_context", "write_agent_artifact", "write_project_file", "run_verifier"],
+  "allowed_output_globs": ["worktree/shopping-site/*", "agents/*/*", "ai_company/*"],
+  "blocked_actions": ["network_send", "external_publish"],
+  "risk_level": "medium"
+}

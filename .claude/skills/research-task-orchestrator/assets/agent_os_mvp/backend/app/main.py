@@ -54,6 +54,13 @@ def checkout_marker():
             micro_root = project_root / micro_root
     else:
         micro_root = project_root / "agent-test-runs"
+    fab_poc_root = os.getenv("FAB_AGENT_POC_RESULTS_ROOT", "").strip()
+    if fab_poc_root:
+        fab_root = Path(fab_poc_root).expanduser()
+        if not fab_root.is_absolute():
+            fab_root = project_root / fab_root
+    else:
+        fab_root = project_root / "results" / "fab_agent_poc"
     result_root = get_results_root()
     return {
         "status": "ok",
@@ -64,12 +71,15 @@ def checkout_marker():
         "result_root": str(result_root),
         "results_root": str(result_root),
         "micro_gates_root": str(micro_root),
+        "fab_agent_poc_root": str(fab_root),
         "watched_roots": {
             "AI_COMPANY_RESULTS_ROOT": str(result_root),
             "MICRO_GATES_RUNS_ROOT": str(micro_root),
+            "FAB_AGENT_POC_RESULTS_ROOT": str(fab_root),
         },
         "watched_root_exists": {
             "AI_COMPANY_RESULTS_ROOT": result_root.exists(),
             "MICRO_GATES_RUNS_ROOT": micro_root.exists(),
+            "FAB_AGENT_POC_RESULTS_ROOT": fab_root.exists(),
         },
     }

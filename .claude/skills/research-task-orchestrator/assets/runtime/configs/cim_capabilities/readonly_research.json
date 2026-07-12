@@ -1,0 +1,12 @@
+{
+  "id": "readonly_research",
+  "display_name": "Read-only Research",
+  "description": "Read approved context and produce planning or research memos. Cannot write project deliverables.",
+  "allowed_skills": ["research-task-orchestrator"],
+  "allowed_mcp_groups": ["filesystem-readonly", "browser-readonly"],
+  "tool_policy": "readonly",
+  "allowed_actions": ["read_context", "write_agent_artifact"],
+  "allowed_output_globs": ["agents/*/*", "meeting/*"],
+  "blocked_actions": ["write_project_file", "edit_project_file", "shell_command"],
+  "risk_level": "low"
+}
