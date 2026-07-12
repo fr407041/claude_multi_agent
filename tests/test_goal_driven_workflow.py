@@ -13,6 +13,7 @@ from pathlib import Path
 from scripts.goal_driven_workflow import build_final_verdict, deterministic_goal_plan, normalize_goal_plan, validate_goal_plan, verify_job_contract
 from scripts.run_goal_driven_workflow import main as run_goal_main
 from scripts.materialize_ai_company_task_run import materialize_run
+from scripts.run_ai_company_task_harness import run_post_verify_if_needed
 from scripts.run_ai_company_reviewer_worker import verify_summary_artifact
 from scripts.validate_ai_company_spec import validate_spec
 from scripts.worker_claude_router import build_prompt_details, extract_multi_artifacts
@@ -166,6 +167,19 @@ class GoalDrivenWorkflowTests(unittest.TestCase):
             scope = Path(tmp)
             (scope / "summary.md").write_text("Generic summary", encoding="utf-8")
             self.assertIsNone(verify_summary_artifact(scope))
+
+    def test_post_verify_failure_is_recorded_not_raised(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "ai_company").mkdir()
+            report = run_post_verify_if_needed(
+                {"post_verify_command": "python3 -c 'import json, sys; print(json.dumps({\"all_passed\": False, \"failure_category\": \"ARTIFACT_NOT_CREATED_BY_MODEL\"})); sys.exit(1)'"},
+                run_dir,
+            )
+        self.assertIsNotNone(report)
+        self.assertEqual(1, report["exit_code"])
+        self.assertFalse(report["parsed"]["all_passed"])
+        self.assertEqual("ARTIFACT_NOT_CREATED_BY_MODEL", report["parsed"]["failure_category"])
 
     def test_managed_goal_worker_reads_inputs_not_missing_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

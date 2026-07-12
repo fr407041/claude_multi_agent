@@ -30,6 +30,8 @@ MICRO_GATE_EXPECTED_ARTIFACTS = {
     "F": "ptt-stock-live/final.json",
 }
 
+ARTIFACT_NOT_CREATED_CATEGORIES = {"ARTIFACT_NOT_CREATED_BY_MODEL", "ARTIFACT_NOT_ATTEMPTED"}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -119,6 +121,9 @@ def _micro_gate_status(gate: dict[str, Any]) -> str:
 
 
 def _micro_gate_failure_reason(gate: dict[str, Any]) -> str:
+    failure_category = str(gate.get("failure_category") or "")
+    if failure_category in ARTIFACT_NOT_CREATED_CATEGORIES:
+        return "Agent did not create the expected file."
     if gate.get("verifier_pass") is False:
         return "Agent did not create output that matched the expected artifact contract."
     if str(gate.get("api_status", "")).lower() in {"failed", "timeout", "interrupted"}:
@@ -133,14 +138,42 @@ def _micro_gate_hint(gate: dict[str, Any]) -> str:
     if status == "Completed":
         return "No action needed for this gate."
     expected = MICRO_GATE_EXPECTED_ARTIFACTS.get(str(gate.get("gate", "")).upper(), "the expected artifact")
+    failure_category = str(gate.get("failure_category") or "")
+    if failure_category in ARTIFACT_NOT_CREATED_CATEGORIES:
+        return f"Rerun only this small gate with a narrow instruction: create {expected}; do not accept prose-only output."
     return f"Rerun this small gate and verify that the agent writes {expected}."
+
+
+def _micro_gate_run_dir(gate: dict[str, Any]) -> Path | None:
+    value = gate.get("run_dir")
+    if not value:
+        return None
+    return Path(str(value))
+
+
+def _micro_gate_expected_artifact_info(gate: dict[str, Any]) -> dict[str, Any] | None:
+    gate_name = str(gate.get("gate") or "").upper()
+    expected = MICRO_GATE_EXPECTED_ARTIFACTS.get(gate_name)
+    run_dir = _micro_gate_run_dir(gate)
+    if not expected or run_dir is None:
+        return None
+    candidates = [run_dir / expected, run_dir / "worktree" / expected]
+    existing = next((item for item in candidates if item.exists()), candidates[0])
+    info = _path_info(existing, "expected artifact")
+    if info is None:
+        return None
+    info["expected_path"] = expected
+    info["candidate_paths"] = [str(item) for item in candidates]
+    return info
 
 
 def _build_micro_gate_details(summary: dict[str, Any]) -> list[dict[str, Any]]:
     details: list[dict[str, Any]] = []
     for gate in summary.get("gates") or []:
         gate_name = str(gate.get("gate") or "").upper()
-        actual = _path_info(gate.get("run_dir"), "run directory")
+        actual = _micro_gate_expected_artifact_info(gate)
+        run_directory = _path_info(gate.get("run_dir"), "run directory")
+        verifier_result = _path_info(gate.get("verifier_result_path"), "verifier result")
         details.append(
             {
                 "name": f"Gate {gate_name}" if gate_name else "Gate",
@@ -150,12 +183,14 @@ def _build_micro_gate_details(summary: dict[str, Any]) -> list[dict[str, Any]]:
                 "actual_artifact": actual,
                 "failure_reason": _micro_gate_failure_reason(gate),
                 "user_hint": _micro_gate_hint(gate),
+                "failure_category": gate.get("failure_category") or "",
                 "run_id": gate.get("run_id"),
                 "technical_paths": [
                     item
                     for item in [
-                        _path_info(gate.get("run_dir"), "run directory"),
-                        _path_info(gate.get("verifier_result_path"), "verifier result"),
+                        actual,
+                        run_directory,
+                        verifier_result,
                     ]
                     if item
                 ],
@@ -223,7 +258,7 @@ def _common_micro_gate_run(summary_path: Path) -> dict[str, Any]:
     failed_gate = summary.get("failed_gate")
     headline = "Validation completed and verified." if user_status == "Completed" else f"Validation failed at Gate {failed_gate}." if failed_gate else "Validation is still running."
     progress = _micro_gate_progress(summary, details)
-    artifacts = [_path_info(summary_path, "run summary"), _path_info(summary.get("run_set_dir"), "run directory")]
+    artifacts = [_path_info(summary_path, "run summary"), _path_info(summary.get("run_set_dir"), "validation run set")]
     for gate in details:
         artifacts.extend(gate["technical_paths"])
     artifacts = [item for item in artifacts if item]
@@ -304,6 +339,29 @@ def _append_artifact(artifacts: list[dict[str, Any]], path: Path, label: str, ro
     artifacts.append(info)
 
 
+def _artifact_checks_to_list(artifact_checks: Any) -> list[dict[str, Any]]:
+    if isinstance(artifact_checks, dict):
+        return [
+            {"label": str(name), "status": "pass" if passed else "fail", "detail": "Verified." if passed else "Verification failed."}
+            for name, passed in artifact_checks.items()
+        ]
+    if isinstance(artifact_checks, list):
+        checks: list[dict[str, Any]] = []
+        for item in artifact_checks:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status") or "").lower()
+            checks.append(
+                {
+                    "label": str(item.get("label") or "Verification check"),
+                    "status": "pass" if status == "pass" else "fail" if status == "fail" else status or "pending",
+                    "detail": str(item.get("detail") or ""),
+                }
+            )
+        return checks
+    return []
+
+
 def _build_ai_output_package(run: dict[str, Any], artifact_checks: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
     run_root = _ai_run_root(run.get("run_id"))
     if not run_root:
@@ -352,10 +410,7 @@ def _common_ai_company_run(run: dict[str, Any]) -> dict[str, Any]:
     summary = final_result.get("summary_excerpt") or final_result.get("summary_markdown") or run.get("decision_summary") or ""
     artifact_checks = final_result.get("artifact_checks") or {}
     artifacts, output_paths = _build_ai_output_package(run, artifact_checks)
-    checks = [
-        {"label": name, "status": "pass" if passed else "fail", "detail": "Verified." if passed else "Verification failed."}
-        for name, passed in artifact_checks.items()
-    ]
+    checks = _artifact_checks_to_list(artifact_checks)
     agents = []
     board = run.get("agent_state_board") or {}
     for state_name, mapped in [("running", "active"), ("waiting", "waiting"), ("done", "done"), ("failed", "failed")]:
@@ -418,6 +473,84 @@ def _common_ai_company_run(run: dict[str, Any]) -> dict[str, Any]:
         },
         "technical_details": {"meeting": meeting_details, "raw_run": run},
     }
+
+
+def _direct_ai_company_run(run_dir: Path) -> dict[str, Any] | None:
+    ai_dir = run_dir / "ai_company"
+    report_path = ai_dir / "task_harness_report.json"
+    if not report_path.is_file():
+        return None
+    report, _ = _load_json(report_path)
+    if report is None:
+        return None
+    meeting, _ = _load_json(ai_dir / "meeting_decision.json") if (ai_dir / "meeting_decision.json").is_file() else ({}, None)
+    final_verdict, _ = _load_json(ai_dir / "final_run_verdict.json") if (ai_dir / "final_run_verdict.json").is_file() else ({}, None)
+    artifact_report, _ = _load_json(ai_dir / "artifact_verify_report.json") if (ai_dir / "artifact_verify_report.json").is_file() else ({}, None)
+    execution, _ = _load_json(ai_dir / "execution_summary.json") if (ai_dir / "execution_summary.json").is_file() else ({}, None)
+    reviewer, _ = _load_json(ai_dir / "reviewer_verdicts.json") if (ai_dir / "reviewer_verdicts.json").is_file() else ({}, None)
+    status_records = []
+    for status_path in sorted((run_dir / "results").glob("*.status.json")):
+        item, _ = _load_json(status_path)
+        if item:
+            status_records.append(item)
+    parsed_artifact = artifact_report.get("parsed", {}) if isinstance(artifact_report, dict) else {}
+    summary_text = _preview_text(run_dir / "worktree" / "summary.md", limit=4000)
+    kpis = report.get("kpis", {}) if isinstance(report.get("kpis"), dict) else {}
+    overall_status = final_verdict.get("overall_status") or report.get("overall_status") or ("fail" if parsed_artifact.get("all_passed") is False else "unknown")
+    agents = []
+    for item in status_records:
+        status = str(item.get("status") or "").upper()
+        mapped = "done" if status == "SUCCESS" else "failed" if status in {"FAILED", "ROUTER_ERROR", "CHILD_TIMEOUT", "BLOCKED_BY_DEPENDENCY"} else "waiting"
+        agents.append(
+            {
+                "task_id": item.get("id") or "agent",
+                "role": item.get("owner_role") or "Agent",
+                "status": mapped,
+                "verification_note": item.get("verification_note") or status,
+            }
+        )
+    board = {
+        "running": [item for item in agents if item["status"] == "active"],
+        "waiting": [item for item in agents if item["status"] == "waiting"],
+        "done": [item for item in agents if item["status"] == "done"],
+        "failed": [item for item in agents if item["status"] == "failed"],
+    }
+    return {
+        "run_id": report.get("run_dir", run_dir.name).split("/")[-1].split("\\")[-1],
+        "overall_status": overall_status,
+        "started_at": report.get("kpis", {}).get("started_at") or datetime.fromtimestamp(run_dir.stat().st_mtime, tz=timezone.utc).isoformat(),
+        "goal": kpis.get("goal", ""),
+        "decision_summary": meeting.get("decision_summary", ""),
+        "meeting": meeting,
+        "live_meeting_used": bool(meeting.get("live_meeting_used")),
+        "live_turn_count": meeting.get("live_turn_count", 0),
+        "live_transport": meeting.get("live_transport", ""),
+        "agent_state_board": board,
+        "execution_log": execution.get("execution_log", []) if isinstance(execution, dict) else [],
+        "review_verdicts": reviewer.get("verdicts", []) if isinstance(reviewer, dict) else [],
+        "final_result": {
+            "summary_markdown": summary_text,
+            "summary_excerpt": summary_text[:420],
+            "artifact_score": parsed_artifact.get("score"),
+            "artifact_checks": parsed_artifact.get("checks", {}),
+            "all_passed": parsed_artifact.get("all_passed"),
+            "limitations": parsed_artifact.get("limitations", []),
+            "final_run_verdict": final_verdict,
+            "overall_status": overall_status,
+        },
+    }
+
+
+def _collect_direct_ai_company_runs() -> list[dict[str, Any]]:
+    root = get_results_root()
+    if not root.exists():
+        return []
+    runs: list[dict[str, Any]] = []
+    for run_dir in sorted(root.glob("run-*"), key=lambda path: path.stat().st_mtime, reverse=True)[:40]:
+        item = _direct_ai_company_run(run_dir)
+        if item:
+            runs.append(_common_ai_company_run(item))
+    return runs
 
 
 def _goal_user_status(goal: dict[str, Any], tasks: list[dict[str, Any]], reviews: list[dict[str, Any]]) -> str:
@@ -613,6 +746,11 @@ def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
                 runs.append(_common_ai_company_run(item))
         except Exception as exc:  # pragma: no cover - defensive adapter isolation
             warnings.append(f"Could not load ai-company runs: {exc}")
+    seen = {str(item.get("run_id")) for item in runs}
+    for item in _collect_direct_ai_company_runs():
+        if str(item.get("run_id")) not in seen:
+            runs.append(item)
+            seen.add(str(item.get("run_id")))
     runs.sort(key=_sort_key, reverse=True)
     compact_runs = [_compact_run(item) for item in runs[:20]]
     latest_run = compact_runs[0] if compact_runs else None
@@ -643,5 +781,11 @@ def get_common_run_detail(run_id: str, connection: Connection | None = None) -> 
             if row is None:
                 raise FileNotFoundError(run_id)
             return _common_agent_task_run(connection, row)
-        return _common_ai_company_run(get_ai_company_run_detail(connection, run_id))
+        try:
+            return _common_ai_company_run(get_ai_company_run_detail(connection, run_id))
+        except FileNotFoundError:
+            pass
+    direct = _direct_ai_company_run(get_results_root() / run_id)
+    if direct:
+        return _common_ai_company_run(direct)
     raise FileNotFoundError(run_id)

@@ -119,6 +119,20 @@ python3 scripts/verify_install.py --strict --json
 python3 scripts/run_ai_company_task_harness.py docs/ai_specs/ai-company-release-readiness-strict-demo.json --mode mock
 ```
 
+Common live demo:
+
+```bash
+bash scripts/run-shopping-site-common-demo.sh live
+```
+
+This asks the installed agent environment to hold the normal bounded meeting,
+generate a small static output package, and verify the generated files. The
+default demo is a shopping-site package because it is easy for humans to review:
+`shopping-site/index.html`, `shopping-site/styles.css`,
+`shopping-site/app.js`, and `shopping-site/README.md`. The architecture is not
+shopping-specific; it is a common "generated outputs + verification evidence"
+demo profile.
+
 Dashboard verification:
 
 ```bash
@@ -164,6 +178,17 @@ http://127.0.0.1:15174/
 - `scripts/run_ai_company_task_harness.py`: mock/live task harness
 - `scripts/run-agent-micro-gates.ps1`: precise live micro-gate runner
 - `scripts/verify_agent_micro_gate.py`: deterministic micro-gate verifier
+- `scripts/run-shopping-site-common-demo.sh`: common live generated-output demo
+- `scripts/verify_generated_output_package.py`: generated output package verifier
+
+## Legacy Stress Tests
+
+`scripts/run-agent-micro-gates.ps1` still exists for strict PTT Stock crawler
+stress testing. It depends on an external website and on the model reliably
+creating crawler artifacts, so it is useful for hardening but no longer the
+common install/live demo acceptance path. Missing artifacts in those gates are
+reported as model artifact reliability failures, not as a dashboard install
+failure.
 
 ## Safety
 

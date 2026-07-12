@@ -59,6 +59,17 @@ bash .claude/skills/research-task-orchestrator/scripts/run_task.sh \
   docs/ai_specs/ai-company-release-readiness-strict-demo.json --mode live
 ```
 
+Run the common generated-output live demo:
+
+```bash
+bash scripts/run-shopping-site-common-demo.sh live
+```
+
+The demo asks the installed agent environment to hold a bounded meeting, generate
+a small static output package, run deterministic verification, and show the
+result in the dashboard. The shopping-site package is only the default reviewable
+demo profile; the orchestration pattern is generic.
+
 The installer writes only to `.ai-company/runtime/releases/<release_id>` in the project and atomically updates `.ai-company/runtime/current`. It must not modify global Claude, Router, model, npm, or shell configuration.
 
 ## Repo entrypoints
@@ -75,6 +86,10 @@ The installer writes only to `.ai-company/runtime/releases/<release_id>` in the 
   - `scripts/smoke_live_meeting.py`
 - Generic goal check:
   - `scripts/check_common_research_goal.js`
+- Common generated-output demo:
+  - `docs/ai_specs/shopping-site-common-demo.json`
+  - `scripts/run-shopping-site-common-demo.sh`
+  - `scripts/verify_generated_output_package.py`
 - Simple Web GUI docs:
   - `docs/common_research_orchestrator_zh-TW.md`
 - Bundled Simple Web GUI payload:
@@ -154,6 +169,16 @@ bash agent_os_mvp/start-dashboard.sh
    - Artifacts root: `results/ai_company_task_harness`
 
 If the dashboard opens with zero runs, explain that no compatible run artifacts have been generated yet. Do not describe that as a dashboard failure.
+
+For a human-reviewable live demo, run:
+
+```bash
+bash scripts/run-shopping-site-common-demo.sh live
+```
+
+Then refresh the dashboard manually and open the latest run. The default action
+should be `Review outputs`, and `Generated outputs` should list the produced
+files plus verification evidence.
 
 Stop the dashboard with:
 

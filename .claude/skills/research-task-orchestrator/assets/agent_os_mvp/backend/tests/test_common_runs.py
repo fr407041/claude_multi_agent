@@ -25,7 +25,7 @@ class CommonRunsAdapterTest(unittest.TestCase):
 
     def test_empty_runs_are_generic(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
-            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(Path(tempdir) / "results")}, clear=False):
                 snapshot = collect_common_runs()
         self.assertEqual(0, snapshot["overview"]["total_runs"])
         self.assertEqual([], snapshot["recent_runs"])
@@ -52,7 +52,7 @@ class CommonRunsAdapterTest(unittest.TestCase):
             }
             (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
 
-            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(Path(tempdir) / "results")}, clear=False):
                 snapshot = collect_common_runs()
                 detail = get_common_run_detail(run_set.name)
 
@@ -63,6 +63,45 @@ class CommonRunsAdapterTest(unittest.TestCase):
         self.assertNotIn("PTT", latest["headline"])
         self.assertEqual("single artifact creation", detail["technical_details"]["validation_details"][1]["capability"])
         self.assertEqual("ptt-stock-live/article.json", detail["technical_details"]["validation_details"][1]["expected_artifact"])
+        actual = detail["technical_details"]["validation_details"][1]["actual_artifact"]
+        self.assertFalse(actual["exists"])
+        self.assertTrue(actual["path"].replace("\\", "/").endswith("/ptt-stock-live/article.json"))
+
+    def test_micro_gate_artifact_not_created_gets_actionable_user_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            run_set = root / "micro-gates-20260712T030405Z"
+            run_set.mkdir()
+            run_dir = root / "run-b"
+            run_dir.mkdir()
+            summary = {
+                "run_set_id": run_set.name,
+                "run_set_dir": str(run_set),
+                "started_at_utc": "2026-07-12T03:04:05Z",
+                "finished_at_utc": "2026-07-12T03:05:05Z",
+                "pass": False,
+                "failed_gate": "B",
+                "gates": [
+                    {
+                        "gate": "B",
+                        "api_status": "failed",
+                        "return_code": 1,
+                        "verifier_pass": False,
+                        "verifier_exit_code": 1,
+                        "failure_category": "ARTIFACT_NOT_CREATED_BY_MODEL",
+                        "run_dir": str(run_dir),
+                    }
+                ],
+            }
+            (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(Path(tempdir) / "results")}, clear=False):
+                detail = get_common_run_detail(run_set.name)
+
+        gate = detail["technical_details"]["validation_details"][0]
+        self.assertEqual("Agent did not create the expected file.", gate["failure_reason"])
+        self.assertIn("do not accept prose-only output", gate["user_hint"])
+        self.assertEqual("ARTIFACT_NOT_CREATED_BY_MODEL", gate["failure_category"])
 
     def test_micro_gate_all_pass_is_completed(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -79,17 +118,64 @@ class CommonRunsAdapterTest(unittest.TestCase):
                 ],
             }
             (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
-            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(Path(tempdir) / "results")}, clear=False):
                 snapshot = collect_common_runs()
         self.assertEqual("Completed", snapshot["latest_run"]["user_status"])
         self.assertEqual("pass", snapshot["latest_run"]["verification"]["status"])
+
+    def test_direct_ai_company_failed_run_is_visible_without_db_sync_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            run = root / "run-20260712-125855-shopping-site-common-demo"
+            ai_dir = run / "ai_company"
+            ai_dir.mkdir(parents=True)
+            (run / "worktree").mkdir()
+            (run / "results").mkdir()
+            (ai_dir / "task_harness_report.json").write_text(
+                json.dumps(
+                    {
+                        "run_dir": str(run),
+                        "overall_status": "fail",
+                        "kpis": {"goal": "Create a generated output package."},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (ai_dir / "final_run_verdict.json").write_text(
+                json.dumps({"overall_status": "fail", "failure_category": "ARTIFACT_NOT_CREATED_BY_MODEL"}),
+                encoding="utf-8",
+            )
+            (ai_dir / "artifact_verify_report.json").write_text(
+                json.dumps(
+                    {
+                        "parsed": {
+                            "all_passed": False,
+                            "score": 0.0,
+                            "checks": [
+                                {"label": "shopping-site/index.html exists", "status": "fail", "detail": "missing file"}
+                            ],
+                            "limitations": ["Verifier recorded missing generated output."],
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict("os.environ", {"AI_COMPANY_RESULTS_ROOT": tempdir, "MICRO_GATES_RUNS_ROOT": str(root / "micro")}, clear=False):
+                snapshot = collect_common_runs()
+                detail = get_common_run_detail(run.name)
+
+        self.assertEqual(run.name, snapshot["latest_run"]["run_id"])
+        self.assertEqual("Failed", snapshot["latest_run"]["user_status"])
+        self.assertEqual("fail", detail["verification"]["status"])
+        self.assertEqual("shopping-site/index.html exists", detail["verification"]["checks"][0]["label"])
 
     def test_malformed_micro_gate_summary_does_not_crash(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             run_set = Path(tempdir) / "micro-gates-bad"
             run_set.mkdir()
             (run_set / "run-summary.json").write_text("{bad", encoding="utf-8")
-            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(Path(tempdir) / "results")}, clear=False):
                 snapshot = collect_common_runs()
         self.assertEqual("Needs attention", snapshot["latest_run"]["user_status"])
         self.assertEqual("Validation run could not be read.", snapshot["latest_run"]["headline"])

@@ -1,0 +1,144 @@
+{
+  "id": "shopping-site-common-demo",
+  "goal": "Create a small static shopping website MVP that a user can review as a generated output package.",
+  "strategy": "Use a bounded meeting, then generate four explicit files with deterministic verification. This is a common generated-output demo, not a dashboard-specific or shopping-only architecture.",
+  "workflow": {"mode": "goal_driven", "max_jobs": 5, "max_replans": 1},
+  "verification": {"type": "generic_contract", "claim_evidence_required": true},
+  "recovery": {"strategy": "dependency_aware", "max_attempts_per_job": 1},
+  "agent_profile_mode": "auto",
+  "post_verify_command": "python3 {root}/scripts/verify_generated_output_package.py {scope_path} --profile shopping-site",
+  "goal_plan": {
+    "goal": "Create a small static shopping website MVP that a user can review as a generated output package.",
+    "supplied_inputs": [],
+    "jobs": [
+      {
+        "id": "job-001",
+        "title": "Create shopping page shell",
+        "capability": "generate",
+        "instruction": "Create shopping-site/index.html for a static shopping website MVP. It must link styles.css and app.js, show a clear product grid, include at least four products with prices and add-to-cart controls, include cart count and total placeholders, and include a checkout button clearly marked as a demo/stub. Keep it dependency-free and reviewable by opening index.html.",
+        "depends_on": [],
+        "inputs": [],
+        "outputs": ["shopping-site/index.html"],
+        "files": ["shopping-site/index.html"],
+        "tools": ["write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "shopping-site/index.html"},
+          {"type": "text_min_chars", "path": "shopping-site/index.html", "min_chars": 500},
+          {"type": "claim_evidence"}
+        ],
+        "evidence_requirements": ["file path and main UI elements created"],
+        "success_check": "index.html exists and describes the product grid, cart placeholders, and checkout stub.",
+        "owner_role": "executor_docs",
+        "agent_profile": "executor_docs",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only index.html."
+      },
+      {
+        "id": "job-002",
+        "title": "Style shopping page",
+        "capability": "generate",
+        "instruction": "Create shopping-site/styles.css for the static shopping website. Style a clean product grid, product cards, cart area, buttons, and responsive layout. Do not use external dependencies or remote assets.",
+        "depends_on": ["job-001"],
+        "inputs": ["shopping-site/index.html"],
+        "outputs": ["shopping-site/styles.css"],
+        "files": ["shopping-site/styles.css"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "shopping-site/styles.css"},
+          {"type": "text_min_chars", "path": "shopping-site/styles.css", "min_chars": 120},
+          {"type": "claim_evidence"}
+        ],
+        "evidence_requirements": ["style rules for grid/cards/cart/buttons"],
+        "success_check": "styles.css exists and styles the generated site.",
+        "owner_role": "executor_docs",
+        "agent_profile": "executor_docs",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only styles.css."
+      },
+      {
+        "id": "job-003",
+        "title": "Implement cart interaction",
+        "capability": "generate",
+        "instruction": "Create shopping-site/app.js for the static shopping website. Implement add-to-cart behavior, cart count updates, total price calculation, and a checkout stub that explicitly says no real payment is processed. Use plain JavaScript only.",
+        "depends_on": ["job-001", "job-002"],
+        "inputs": ["shopping-site/index.html", "shopping-site/styles.css"],
+        "outputs": ["shopping-site/app.js"],
+        "files": ["shopping-site/app.js"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "shopping-site/app.js"},
+          {"type": "text_min_chars", "path": "shopping-site/app.js", "min_chars": 200},
+          {"type": "claim_evidence"}
+        ],
+        "evidence_requirements": ["add-to-cart, count update, total update, checkout stub"],
+        "success_check": "app.js exists and implements cart behavior without real payment processing.",
+        "owner_role": "executor_docs",
+        "agent_profile": "executor_docs",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only app.js."
+      },
+      {
+        "id": "job-004",
+        "title": "Write review instructions",
+        "capability": "synthesize",
+        "instruction": "Create shopping-site/README.md explaining what was generated, how to review it locally by opening index.html, what files are included, and limitations. Make clear this is a static demo with no real checkout or payment processing.",
+        "depends_on": ["job-001", "job-002", "job-003"],
+        "inputs": ["shopping-site/index.html", "shopping-site/styles.css", "shopping-site/app.js"],
+        "outputs": ["shopping-site/README.md"],
+        "files": ["shopping-site/README.md"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "shopping-site/README.md"},
+          {"type": "text_min_chars", "path": "shopping-site/README.md", "min_chars": 120},
+          {"type": "claim_evidence"},
+          {"type": "goal_answering"}
+        ],
+        "evidence_requirements": ["generated file list and review instructions"],
+        "success_check": "README.md exists and tells a user how to inspect the generated output package.",
+        "owner_role": "synthesis_agent",
+        "agent_profile": "synthesis_agent",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only README.md."
+      },
+      {
+        "id": "job-005",
+        "title": "Summarize generated output package",
+        "capability": "synthesize",
+        "instruction": "Create summary.md with 3 short bullets and one short takeaway sentence. Summarize the generated shopping-site package, list the main deliverables, state that verification checks static files and cart behavior, and mention the limitation that checkout is a stub with no real payment processing.",
+        "depends_on": ["job-001", "job-002", "job-003", "job-004"],
+        "inputs": ["shopping-site/index.html", "shopping-site/styles.css", "shopping-site/app.js", "shopping-site/README.md"],
+        "outputs": ["summary.md"],
+        "files": ["summary.md"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "summary.md"},
+          {"type": "text_min_chars", "path": "summary.md", "min_chars": 120},
+          {"type": "claim_evidence"},
+          {"type": "goal_answering"}
+        ],
+        "evidence_requirements": ["generated file list, verification scope, and checkout limitation"],
+        "success_check": "summary.md gives a concise human-readable result for the dashboard.",
+        "owner_role": "synthesis_agent",
+        "agent_profile": "synthesis_agent",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only summary.md."
+      }
+    ]
+  },
+  "dag_validation_report": {"passed": true, "status": "pass", "job_count": 5, "topological_order": ["job-001", "job-002", "job-003", "job-004", "job-005"], "errors": [], "model_calls_started": 0},
+  "jobs": [],
+  "expectations": {
+    "meeting_status": "MEETING_READY",
+    "min_accepted_count": 5,
+    "max_reassignment_count": 1,
+    "max_execution_jobs_run": 10,
+    "require_loop_bounded": true,
+    "require_post_verify_all_passed": true,
+    "min_artifact_score": 1.0
+  }
+}

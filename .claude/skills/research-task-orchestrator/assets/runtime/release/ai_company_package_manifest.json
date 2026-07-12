@@ -4,7 +4,7 @@
   "runtime_files": [
     {
       "path": "scripts/package_contract.py",
-      "sha256": "b7b09694fdf886d39b74bee91953b2da2c76f98e1d8a0def49eabd1a1d4c772c"
+      "sha256": "711817ab4ac2c892b5de816a7ca7ad78d1bff9a4805762d2561c6bd17e17b03f"
     },
     {
       "path": "scripts/validate_ai_company_spec.py",
@@ -20,7 +20,7 @@
     },
     {
       "path": "scripts/run_ai_company_task_harness.py",
-      "sha256": "8d8873abe7e2a228e2e94cd05f8274549474f8e8525149ed70c31396c7df93b0"
+      "sha256": "425a7e2a3e27c4cad9545d02c382443c0b2b832668ac82fc435f397d739e124e"
     },
     {
       "path": "scripts/materialize_ai_company_task_run.py",
@@ -79,12 +79,20 @@
       "sha256": "a818a8ca7f08806bd94df8fcb506338b06636e962dc4b7abc6f7d0d78e82fd12"
     },
     {
+      "path": "scripts/run-shopping-site-common-demo.sh",
+      "sha256": "9f77f83a28ea0dd40ffcebec372235611ff27130c8e9f54a53240dd1ae6c2597"
+    },
+    {
       "path": "scripts/prepare_common_research_case.py",
       "sha256": "dc25da9c460c0a8dca68e30e02374cff530292407a26c78a234d132db016c3a3"
     },
     {
       "path": "scripts/verify_common_research_artifact.py",
       "sha256": "4592197882ea4821c9d6e425075daf83859dfeaec69098d07c6ea92dbaa053ff"
+    },
+    {
+      "path": "scripts/verify_generated_output_package.py",
+      "sha256": "4197b3740692287bc7ab3fe6d55bb07262991e9a01a10bd79dfd4b6efdbd92cd"
     },
     {
       "path": "scripts/verify_sens_summary_artifact.py",
@@ -137,6 +145,10 @@
     {
       "path": "docs/ai_specs/goal-driven-code-execute-repair-live.json",
       "sha256": "051d4758619f6c507db7425d25017f6e2b1bbd2212fc0c95677106d542ab5363"
+    },
+    {
+      "path": "docs/ai_specs/shopping-site-common-demo.json",
+      "sha256": "4337d040aaa1ad422a2a30a4e474fda2be0c4b124f7a8f990fbcf4ecf70fed33"
     },
     {
       "path": "tests/fixtures/ai_company_release_readiness_demo/release_brief.md",
@@ -258,7 +270,7 @@
   "skill_files": [
     {
       "path": "SKILL.md",
-      "sha256": "e7f475a2511fcc7132c44d493d04649f606a2e21ae4595f27095cf6fe0421c30"
+      "sha256": "dee75a9b39ba0d2ac8f38ef1afb31c0366ed47412f0cf80efe597da8668de127"
     },
     {
       "path": "agents/openai.yaml",

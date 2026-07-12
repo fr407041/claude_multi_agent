@@ -134,7 +134,7 @@ def run_post_verify_if_needed(spec: dict[str, Any], run_dir: Path) -> dict[str, 
     if not verify_command:
         return None
     argv = render_template_command(str(verify_command), run_dir)
-    proc = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, check=True)
+    proc = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, check=False)
     stdout = proc.stdout.strip()
     parsed: dict[str, Any] | None = None
     if stdout:
@@ -144,6 +144,7 @@ def run_post_verify_if_needed(spec: dict[str, Any], run_dir: Path) -> dict[str, 
             parsed = None
     report = {
         "command": argv,
+        "exit_code": proc.returncode,
         "stdout": proc.stdout,
         "stderr": proc.stderr,
         "dashboard_fixture_boundary_warning": True,

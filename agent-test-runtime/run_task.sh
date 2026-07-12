@@ -65,6 +65,84 @@ PY
       --json | tee "${RUN_DIR}/micro-gate-${gate}-verifier-attempt-${attempt}.json"
   }
 
+  expected_micro_gate_artifact() {
+    local gate="$1"
+    case "$gate" in
+      A) printf "%s\n" "ptt-stock-live/proof.txt" ;;
+      B) printf "%s\n" "ptt-stock-live/index.html" ;;
+      C) printf "%s\n" "ptt-stock-live/urls.json" ;;
+      D) printf "%s\n" "ptt-stock-live/article.json" ;;
+      E|F) printf "%s\n" "ptt-stock-live/final.json" ;;
+      *) printf "%s\n" "" ;;
+    esac
+  }
+
+  expected_artifact_missing_or_empty() {
+    local gate="$1"
+    local rel
+    rel="$(expected_micro_gate_artifact "$gate")"
+    if [[ -z "$rel" ]]; then
+      return 1
+    fi
+    [[ ! -s "${RUN_DIR}/${rel}" && ! -s "${RUN_DIR}/worktree/${rel}" ]]
+  }
+
+  build_no_artifact_repair_instructions() {
+    local gate="$1"
+    local rel
+    rel="$(expected_micro_gate_artifact "$gate")"
+    if [[ -z "$rel" ]]; then
+      return 0
+    fi
+    cat <<EOF
+NO_ARTIFACT_CREATED: the expected artifact is missing or empty.
+Required path: ${RUN_DIR}/${rel}
+Do not explain the failure. Use tools to create the file at the required path, then verify it exists and is non-empty before final output.
+Only repair Micro gate ${gate}.
+EOF
+    case "$gate" in
+      A)
+        cat <<'EOF'
+Required file content:
+TOOL_EXECUTED_OK
+EOF
+        ;;
+      B)
+        cat <<'EOF'
+Required artifact contract:
+- Fetch https://www.ptt.cc/bbs/Stock/index.html yourself.
+- Save the raw HTML to ptt-stock-live/index.html.
+- The file must contain PTT Stock board markers and be larger than 500 bytes.
+EOF
+        ;;
+      C)
+        cat <<'EOF'
+Required artifact contract:
+- Parse exactly 5 unique latest PTT Stock article URLs.
+- Save JSON to ptt-stock-live/urls.json as {"urls":["https://www.ptt.cc/bbs/Stock/M.<digits>.A.<id>.html", ...]}.
+- Do not include board index URLs.
+EOF
+        ;;
+      D)
+        cat <<'EOF'
+Required exact JSON schema:
+{"title":"...","url":"https://www.ptt.cc/bbs/Stock/M.<digits>.A.<id>.html","author":"...","date":"...","body":"article body text at least 100 chars"}
+If seed URLs are listed in the original task, use one of those URLs.
+If raw HTML already exists in the artifact snapshot below, parse that existing raw HTML first.
+If no raw HTML exists, create your own short parser in the run directory, run it, and make it write ptt-stock-live/article.json.
+EOF
+        ;;
+      E|F)
+        cat <<'EOF'
+Required artifact contract:
+- Save final JSON to ptt-stock-live/final.json.
+- Include articles[], stocks[], evidence arrays, article URLs, and limitations.
+- Do not output only prose.
+EOF
+        ;;
+    esac
+  }
+
   snapshot_artifacts() {
     local gate="$1"
     local attempt="$2"
@@ -115,15 +193,8 @@ ${TASK_TEXT}"
     REPAIR_FEEDBACK="$(cat "${RUN_DIR}/micro-gate-${GATE}-verifier-attempt-1.json")"
     ARTIFACT_SNAPSHOT="$(cat "${RUN_DIR}/micro-gate-${GATE}-artifact-snapshot-attempt-1-after.json" 2>/dev/null || true)"
     EXTRA_REPAIR_INSTRUCTIONS=""
-    if [[ "$GATE" == "D" && ! -s "${RUN_DIR}/ptt-stock-live/article.json" ]]; then
-      EXTRA_REPAIR_INSTRUCTIONS="
-NO_ARTIFACT_CREATED: ${RUN_DIR}/ptt-stock-live/article.json is missing or empty.
-Expected exact JSON schema:
-{\"title\":\"...\",\"url\":\"https://www.ptt.cc/bbs/Stock/M.<digits>.A.<id>.html\",\"author\":\"...\",\"date\":\"...\",\"body\":\"article body text at least 100 chars\"}
-If seed URLs are listed in the original task, use one of those URLs.
-If raw HTML already exists in the artifact snapshot below, parse that existing raw HTML first instead of answering with analysis.
-If no raw HTML exists, create your own short parse_article.py in ${RUN_DIR}, run it, and make it write ${RUN_DIR}/ptt-stock-live/article.json.
-Do not discuss the failure; create ${RUN_DIR}/ptt-stock-live/article.json and verify the file exists before final output."
+    if expected_artifact_missing_or_empty "$GATE"; then
+      EXTRA_REPAIR_INSTRUCTIONS="$(build_no_artifact_repair_instructions "$GATE")"
     fi
     REPAIR_PROMPT="${BASE_PROMPT}
 
@@ -154,15 +225,27 @@ try:
 except Exception as exc:
     verifier = {"pass": False, "fail_reasons": [f"verifier result unreadable: {exc}"]}
 failure_category = "ARTIFACT_CONTRACT_FAILED"
-if gate == "D":
-    article_path = path.parent / "ptt-stock-live" / "article.json"
-    if not article_path.exists() or article_path.stat().st_size == 0:
-        failure_category = "ARTIFACT_NOT_ATTEMPTED"
+expected = {
+    "A": "ptt-stock-live/proof.txt",
+    "B": "ptt-stock-live/index.html",
+    "C": "ptt-stock-live/urls.json",
+    "D": "ptt-stock-live/article.json",
+    "E": "ptt-stock-live/final.json",
+    "F": "ptt-stock-live/final.json",
+}.get(gate, "")
+expected_paths = []
+if expected:
+    expected_paths = [path.parent / expected, path.parent / "worktree" / expected]
+    if not any(item.exists() and item.stat().st_size > 0 for item in expected_paths):
+        failure_category = "ARTIFACT_NOT_CREATED_BY_MODEL"
 payload = {
     "status": "failed",
     "failure_category": failure_category,
+    "failure_parent_category": "ARTIFACT_CONTRACT_FAILED",
     "gate": gate,
     "failed_checks": verifier.get("fail_reasons", []),
+    "expected_artifact": expected,
+    "expected_artifact_paths": [str(item) for item in expected_paths],
     "verifier_result_path": str(path),
     "artifact_snapshot_paths": [
         str(item)

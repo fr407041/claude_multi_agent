@@ -338,11 +338,11 @@ try {
       verifier_exit_code = $verifierExit
       verifier_pass = ($verifierExit -eq 0)
       false_success_blocked = ($final.status -eq 'succeeded' -and $verifierExit -ne 0)
-      failure_category = if ($final.status -eq 'succeeded' -and $verifierExit -ne 0) { 'FALSE_SUCCESS_BLOCKED' } elseif ($verifierExit -ne 0) { 'ARTIFACT_CONTRACT_FAILED' } else { '' }
+      failure_category = if ($final.failure_category) { $final.failure_category } elseif ($final.status -eq 'succeeded' -and $verifierExit -ne 0) { 'FALSE_SUCCESS_BLOCKED' } elseif ($verifierExit -ne 0) { 'ARTIFACT_CONTRACT_FAILED' } else { '' }
       verifier_result_path = (Join-Path $gateDir 'verifier-result.json')
       verifier_source = $verifierResult.source
       runtime_verifier_path = $verifierResult.path
-      user_hint = if ($gate -eq 'D' -and $verifierExit -ne 0) { 'Gate D must create ptt-stock-live/article.json from one of the Gate C seed URLs. Check claude-attempt logs and artifact snapshots in the run directory.' } else { '' }
+      user_hint = if ($verifierExit -ne 0 -and $final.failure_category -eq 'ARTIFACT_NOT_CREATED_BY_MODEL') { 'The agent returned without creating the expected file. Rerun only this gate with a narrow create-the-file instruction; do not accept prose-only output.' } elseif ($gate -eq 'D' -and $verifierExit -ne 0) { 'Gate D must create ptt-stock-live/article.json from one of the Gate C seed URLs. Check claude-attempt logs and artifact snapshots in the run directory.' } else { '' }
     }
     if ($gate -eq 'D') {
       $gateResult.seed_urls = $gateContext.gate_c_urls
