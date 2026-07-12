@@ -39,4 +39,7 @@ Use the research-task-orchestrator skill to run: <your task>
 powershell -ExecutionPolicy Bypass -File scripts/run-agent-micro-gates.ps1 -SkipGateF
 ```
 
+Micro-gate task 有 artifact contract 時，`/run-task` final status 必須反映 deterministic verifier 結果。
+非 micro-gate 的一般任務，仍以 process result 與 artifacts 一起判讀。
+
 只有小包 gate 通過後，再跑完整任務。

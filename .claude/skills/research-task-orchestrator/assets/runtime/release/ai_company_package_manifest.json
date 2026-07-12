@@ -12,7 +12,7 @@
     },
     {
       "path": "scripts/verify_install.py",
-      "sha256": "a94b36be902208fd72486aa9753aeaab0368d13d474cd61da2eed47f0f64dd44"
+      "sha256": "dade0a79ab4789a386ad4ff3b2f187757b433aad7e53699d8ddffc5661c3c2dd"
     },
     {
       "path": "scripts/run_ai_company_task_harness.py",

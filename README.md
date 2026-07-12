@@ -81,7 +81,8 @@ TASK_TIMEOUT_SECONDS=1800
 powershell -ExecutionPolicy Bypass -File scripts/run-agent-micro-gates.ps1 -SkipGateF
 ```
 
-`/run-task succeeded` 不等於任務通過；artifact verifier 才是 pass/fail 來源。
+Micro-gate task 有 artifact contract 時，`/run-task` final status 必須反映 deterministic verifier 結果。
+非 micro-gate 的一般任務，仍以 process result 與 artifacts 一起判讀。
 
 ## Dashboard
 

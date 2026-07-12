@@ -1,5 +1,6 @@
 {
-  "repository": "fr407041/multi_agent_claude_code",
+  "repository": "fr407041/claude_multi_agent",
+  "upstream_repository": "fr407041/multi_agent_claude_code",
   "purpose": "Runnable mock demo and company Ubuntu skill package for research-task-orchestrator.",
   "include_roots": [
     "README.md",
@@ -8,6 +9,9 @@
     "release/ai_company_package_manifest.json",
     ".claude/skills/research-task-orchestrator",
     "scripts/verify_install.py",
+    "scripts/run-agent-micro-gates.ps1",
+    "scripts/verify-agent-micro-gate.ps1",
+    "scripts/verify_agent_micro_gate.py",
     "scripts/run_ai_company_task_harness.py",
     "scripts/run_ai_company_meeting.py",
     "scripts/run_ai_company_execution.py",

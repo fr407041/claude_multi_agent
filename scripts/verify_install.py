@@ -12,6 +12,63 @@ from validate_ai_company_spec import validate_spec
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SPEC = Path("docs/ai_specs/ai-company-release-readiness-strict-demo.json")
+EXPECTED_PACKAGE_REPOSITORY = "fr407041/claude_multi_agent"
+EXPECTED_UPSTREAM_REPOSITORY = "fr407041/multi_agent_claude_code"
+PUBLISH_MANIFEST = Path("PUBLISH_MANIFEST.json")
+
+
+def _normalize_repo(value: str) -> str:
+    normalized = str(value or "").strip()
+    normalized = normalized.removeprefix("https://github.com/")
+    normalized = normalized.removeprefix("http://github.com/")
+    normalized = normalized.removesuffix(".git")
+    return normalized.strip("/")
+
+
+def validate_repository_identity(root: Path) -> dict:
+    path = root / PUBLISH_MANIFEST
+    errors = []
+    payload = {}
+    if not path.is_file():
+        errors.append({"code": "PUBLISH_MANIFEST_MISSING", "detail": PUBLISH_MANIFEST.as_posix()})
+    else:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append({"code": "PUBLISH_MANIFEST_INVALID", "detail": str(exc)})
+            payload = {}
+
+    repository = _normalize_repo(payload.get("repository", ""))
+    upstream_repository = _normalize_repo(payload.get("upstream_repository", ""))
+    if repository != EXPECTED_PACKAGE_REPOSITORY:
+        errors.append(
+            {
+                "code": "REPOSITORY_IDENTITY_MISMATCH",
+                "detail": f"repository={repository or 'missing'} expected={EXPECTED_PACKAGE_REPOSITORY}",
+            }
+        )
+    if upstream_repository and upstream_repository == repository:
+        errors.append(
+            {
+                "code": "REPOSITORY_IDENTITY_MISMATCH",
+                "detail": "upstream_repository must not duplicate package repository",
+            }
+        )
+    if upstream_repository and upstream_repository != EXPECTED_UPSTREAM_REPOSITORY:
+        errors.append(
+            {
+                "code": "UPSTREAM_REPOSITORY_UNEXPECTED",
+                "detail": f"upstream_repository={upstream_repository} expected={EXPECTED_UPSTREAM_REPOSITORY}",
+            }
+        )
+    return {
+        "passed": not errors,
+        "manifest_file": PUBLISH_MANIFEST.as_posix(),
+        "repository": repository,
+        "expected_repository": EXPECTED_PACKAGE_REPOSITORY,
+        "upstream_repository": upstream_repository,
+        "errors": errors,
+    }
 
 
 def build_report(root: Path, *, strict: bool, profile: str, skill_root: Path | None) -> dict:
@@ -33,8 +90,16 @@ def build_report(root: Path, *, strict: bool, profile: str, skill_root: Path | N
         "missing_files": [],
         "hash_mismatches": [],
     }
+    repository_report = validate_repository_identity(root) if strict else {
+        "passed": True,
+        "manifest_file": PUBLISH_MANIFEST.as_posix(),
+        "repository": "",
+        "expected_repository": EXPECTED_PACKAGE_REPOSITORY,
+        "upstream_repository": "",
+        "errors": [],
+    }
     missing_files = sorted(set(required_missing + list(package_report.get("missing_files", []))))
-    passed = not missing_files and bool(spec_report.get("passed")) and bool(package_report.get("passed"))
+    passed = not missing_files and bool(spec_report.get("passed")) and bool(package_report.get("passed")) and bool(repository_report.get("passed"))
     return {
         "passed": passed,
         "strict": strict,
@@ -49,6 +114,8 @@ def build_report(root: Path, *, strict: bool, profile: str, skill_root: Path | N
         "missing_files": missing_files,
         "hash_mismatches": package_report.get("hash_mismatches", []),
         "spec_errors": spec_report.get("errors", []),
+        "repository_identity": repository_report,
+        "repository_errors": repository_report.get("errors", []),
         "model_calls_started": 0,
     }
 
@@ -92,6 +159,10 @@ def main() -> int:
         if report["spec_errors"]:
             print("spec errors:")
             for item in report["spec_errors"]:
+                print(f"- {item['code']}: {item['detail']}")
+        if report["repository_errors"]:
+            print("repository identity errors:")
+            for item in report["repository_errors"]:
                 print(f"- {item['code']}: {item['detail']}")
         print("\nInstall verification passed." if report["passed"] else "\nInstall verification failed before model execution.")
     return 0 if report["passed"] else 2
