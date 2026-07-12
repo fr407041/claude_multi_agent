@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8010";
 const BOARD_STATES = ["running", "waiting", "done", "failed", "idle"];
@@ -25,6 +25,20 @@ const emptyMonitor = {
   recent_runs: [],
 };
 
+const emptyCommonRuns = {
+  schema_version: "common-runs.v1",
+  overview: {
+    total_runs: 0,
+    working_count: 0,
+    completed_count: 0,
+    needs_attention_count: 0,
+    failed_count: 0,
+  },
+  latest_run: null,
+  recent_runs: [],
+  warnings: [],
+};
+
 function normalizeStatus(value) {
   return String(value || "unknown").toLowerCase().replace(/\s+/g, "-");
 }
@@ -43,6 +57,14 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function renderList(items) {
@@ -442,7 +464,7 @@ function buildUserDashboardPresentation({ run, selectedRunSummary, finalResult, 
   const reason = canonical.failure_category || canonical.root_cause || canonical.overall_status || run?.degrade_category || watchdog?.last_action || providerDiagnostic?.classification;
   const nextActionText = buildNextAction(runVerdict, finalResult, watchdog, packagePreflight, providerDiagnostic);
   const nextActionLabel = userStatus === "Completed"
-    ? "Open result"
+    ? "Review outputs"
     : userStatus === "Failed"
       ? "Retry"
       : userStatus === "Needs attention"
@@ -479,7 +501,9 @@ function UserHero({ presentation, runId }) {
         <p>{presentation.explanation}</p>
         <p className="user-run-id">{runId || "No run selected"}</p>
       </div>
-      <button type="button" className="primary-action">{presentation.nextAction.label}</button>
+      <a className="primary-action" href={presentation.userStatus === "Completed" ? "#generated-outputs" : "#next-action"}>
+        {presentation.nextAction.label}
+      </a>
     </section>
   );
 }
@@ -487,9 +511,10 @@ function UserHero({ presentation, runId }) {
 function LiveProgressPanel({ progress, connectionState }) {
   const phases = ["Plan", "Gather data", "Analyze", "Review", "Deliver"];
   const percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
+  const meta = connectionState === "connected" ? "Live" : connectionState === "reconnecting" ? "Reconnecting..." : connectionState === "manual" ? "Snapshot" : "Polling fallback";
   return (
     <section className="surface user-progress-panel">
-      <SectionHeader title="Live progress" meta={connectionState === "connected" ? "Live" : connectionState === "reconnecting" ? "Reconnecting..." : "Polling fallback"} />
+      <SectionHeader title="Progress" meta={meta} />
       <div className="progress-bar" aria-label={`Progress ${percent}%`}>
         <span style={{ width: `${percent}%` }} />
       </div>
@@ -539,7 +564,7 @@ function PrimaryResultPanel({ presentation }) {
 function TrustSummaryPanel({ trustSummary }) {
   return (
     <section className={`surface user-trust-panel trust-${trustSummary.ready ? "ready" : "not-ready"}`}>
-      <SectionHeader title="Can I trust this result?" status={trustSummary.label} />
+      <SectionHeader title="Result confidence" status={trustSummary.label} />
       <div className="trust-summary-list">
         {trustSummary.checks.map((check) => (
           <div key={check.label} className={check.ok ? "trust-summary-ok" : "trust-summary-missing"}>
@@ -574,13 +599,264 @@ function RecentRunsCompact({ runs, selectedRunId, onSelect }) {
   );
 }
 
+function buildCommonPresentation(run) {
+  const verification = run?.verification || {};
+  const verificationChecks = verification.checks || [];
+  const ready = run?.user_status === "Completed" && verification.status !== "fail" && !verificationChecks.some((check) => check.status === "fail");
+  const primary = run?.primary_result || {};
+  const normalizedNextAction = run?.next_action
+    ? { ...run.next_action, label: run.next_action.label === "Open result" ? "Review outputs" : run.next_action.label }
+    : { label: "View progress", detail: "Select a run to inspect its status and artifacts." };
+  return {
+    userStatus: run?.user_status || "Working",
+    headline: run?.headline || "No task run selected.",
+    explanation: run?.explanation || "Run an agent task or validation flow to populate this dashboard.",
+    progress: run?.progress || { phase: "Idle", current_step: "Waiting for a run", completed_steps: 0, total_steps: 1, percent: 0 },
+    agents: run?.agents || [],
+    primaryResult: {
+      summary: primary.summary || "No final answer has been recorded yet.",
+      findings: primary.findings || [],
+      deliverables: primary.deliverables || [],
+      outputPaths: primary.output_paths || [],
+    },
+    trustSummary: {
+      ready,
+      label: ready ? "Ready to trust" : "Not ready yet",
+      checks: verificationChecks.length
+        ? verificationChecks.slice(0, 6).map((check) => ({
+            label: check.label,
+            ok: check.status === "pass",
+          }))
+        : [
+            { label: "Evidence available", ok: Boolean((run?.artifacts || []).some((item) => item?.exists)) },
+            { label: "Verification passed", ok: verification.status === "pass" },
+            { label: "Limitations disclosed", ok: Boolean((verification.limitations || []).length || run?.user_status === "Completed") },
+          ],
+    },
+    nextAction: normalizedNextAction,
+  };
+}
+
+function CommonRunPicker({ runs, selectedRunId, onSelect, disabled }) {
+  return (
+    <label className="run-picker">
+      <span>Run</span>
+      <select value={selectedRunId} onChange={(event) => onSelect(event.target.value)} disabled={disabled}>
+        {disabled ? <option>No task runs found</option> : null}
+        {(runs || []).map((item) => (
+          <option key={item.run_id} value={item.run_id}>
+            {item.run_id}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CommonRecentRuns({ runs, selectedRunId, onSelect }) {
+  return (
+    <section className="surface recent-runs-compact">
+      <SectionHeader title="Recent runs" meta="Common task view" />
+      <div className="run-list">
+        {(runs || []).slice(0, 8).map((item) => (
+          <button key={item.run_id} type="button" className={`run-row ${item.run_id === selectedRunId ? "run-row-active" : ""}`} onClick={() => onSelect(item.run_id)}>
+            <div>
+              <strong>{item.headline || item.run_id}</strong>
+              <p>{item.run_type || "agent_task"} · {item.run_id}</p>
+            </div>
+            <div className="run-row-meta">
+              <StatusPill value={item.user_status} />
+              <span>{formatDate(item.updated_at || item.started_at)}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ArtifactList({ artifacts }) {
+  const visible = (artifacts || []).filter(Boolean).slice(0, 12);
+  const existingCount = visible.filter((item) => item.exists).length;
+  const missingCount = visible.length - existingCount;
+  return (
+    <section className="surface artifact-list-panel" id="generated-outputs">
+      <SectionHeader title="Generated outputs" meta={`${existingCount} available${missingCount ? ` · ${missingCount} missing` : ""}`} />
+      {visible.length === 0 ? <p className="muted">No generated files have been recorded yet. A completed run should list its output package here.</p> : null}
+      <div className="artifact-list">
+        {visible.map((item, index) => (
+          <article key={`${item.path}-${index}`} className={`artifact-item artifact-${item.exists ? "exists" : "missing"}`}>
+            <div className="artifact-item-header">
+              <div>
+                <strong>{item.label || "Artifact"}</strong>
+                <p>{item.path}</p>
+              </div>
+              <StatusPill value={item.exists ? "Available" : "Missing"} />
+            </div>
+            <div className="artifact-meta">
+              <span>{item.type || item.kind || "file"}</span>
+              {Number.isFinite(Number(item.size_bytes)) ? <span>{formatBytes(item.size_bytes)}</span> : null}
+              {item.modified_at ? <span>{formatDate(item.modified_at)}</span> : null}
+              {item.role ? <span>{item.role}</span> : null}
+            </div>
+            {item.preview ? (
+              <details className="artifact-preview">
+                <summary>Preview</summary>
+                <pre>{item.preview}</pre>
+              </details>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NextActionCard({ action }) {
+  return (
+    <section className="surface next-action-card" id="next-action">
+      <SectionHeader title="Next action" status={action?.label || "View progress"} />
+      <p>{action?.detail || "Select a run to inspect its next step."}</p>
+    </section>
+  );
+}
+
+function ValidationDetails({ run }) {
+  const details = run?.technical_details?.validation_details || [];
+  if (!details.length) return null;
+  return (
+    <details className="surface validation-details-shell">
+      <summary>Validation details</summary>
+      <div className="validation-detail-list">
+        {details.map((gate) => (
+          <article key={`${gate.name}-${gate.run_id || ""}`} className={`validation-detail validation-${normalizeStatus(gate.status)}`}>
+            <div>
+              <strong>{gate.name}</strong>
+              <p>{gate.capability}</p>
+            </div>
+            <StatusPill value={gate.status} />
+            <dl>
+              <dt>Expected artifact</dt>
+              <dd>{gate.expected_artifact}</dd>
+              <dt>Actual artifact</dt>
+              <dd>{gate.actual_artifact?.path || "n/a"}</dd>
+              <dt>User hint</dt>
+              <dd>{gate.user_hint}</dd>
+              {gate.failure_reason ? (
+                <>
+                  <dt>Failure reason</dt>
+                  <dd>{gate.failure_reason}</dd>
+                </>
+              ) : null}
+            </dl>
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function PlanningDetails({ run }) {
+  const meeting = run?.technical_details?.meeting;
+  if (!meeting) return null;
+  const hasDiscussion = (meeting.discussion_log || []).length > 0;
+  return (
+    <details className="surface validation-details-shell" open={hasDiscussion}>
+      <summary>Meeting discussion &amp; task plan</summary>
+      <div className="validation-detail-list">
+        <article className="validation-detail">
+          <div>
+            <strong>Planning summary</strong>
+            <p>How the agent work was prepared before execution.</p>
+          </div>
+          <StatusPill value="Recorded" />
+          <dl>
+            <dt>Summary</dt>
+            <dd>{meeting.summary || "No planning summary recorded."}</dd>
+          </dl>
+        </article>
+        {(meeting.discussion_log || []).map((item, index) => (
+          <article key={`discussion-${item.role || index}-${item.round || index}`} className="validation-detail">
+            <div>
+              <strong>Round {item.round || index + 1}</strong>
+              <p>{item.role || "meeting agent"}</p>
+            </div>
+            <StatusPill value={item.decision_state || "recorded"} />
+            <dl>
+              <dt>Conclusion</dt>
+              <dd>{item.summary || "No summary recorded."}</dd>
+              <dt>Actions</dt>
+              <dd>{renderList(item.proposed_actions || [])}</dd>
+            </dl>
+          </article>
+        ))}
+        {(meeting.task_assignments || []).map((task) => (
+          <article key={`assignment-${task.task_id}`} className="validation-detail">
+            <div>
+              <strong>Task {task.task_id}</strong>
+              <p>{task.owner_role || "Agent"}</p>
+            </div>
+            <StatusPill value="Assigned" />
+            <dl>
+              <dt>Scope</dt>
+              <dd>{renderList(task.scope || [])}</dd>
+              <dt>Fallback</dt>
+              <dd>{task.fallback_plan || "n/a"}</dd>
+            </dl>
+          </article>
+        ))}
+        {(meeting.collaboration_notes || []).map((item, index) => (
+          <article key={`collaboration-${index}`} className="validation-detail">
+            <div>
+              <strong>{item.primary_role} + {item.buddy_role}</strong>
+              <p>Workbuddy pairing</p>
+            </div>
+            <StatusPill value={item.status || "suggested"} />
+            <dl>
+              <dt>Note</dt>
+              <dd>{item.collaboration_note || "n/a"}</dd>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function CommonTaskDashboard({ run, runs, selectedRunId, onSelect, connectionState }) {
+  const presentation = buildCommonPresentation(run);
+  return (
+    <>
+      <UserHero presentation={presentation} runId={run?.run_id || selectedRunId} />
+      <section className="user-dashboard-grid">
+        <LiveProgressPanel progress={presentation.progress} connectionState={connectionState} />
+        <AgentStatusStrip agents={presentation.agents} />
+        <PrimaryResultPanel presentation={presentation} />
+        <TrustSummaryPanel trustSummary={presentation.trustSummary} />
+        <ArtifactList artifacts={run?.artifacts || []} />
+        <NextActionCard action={presentation.nextAction} />
+      </section>
+      <ValidationDetails run={run} />
+      <PlanningDetails run={run} />
+      <CommonRecentRuns runs={runs} selectedRunId={selectedRunId} onSelect={onSelect} />
+    </>
+  );
+}
+
 export default function App() {
   const [monitor, setMonitor] = useState(emptyMonitor);
+  const [commonRuns, setCommonRuns] = useState(emptyCommonRuns);
+  const [selectedCommonRunId, setSelectedCommonRunId] = useState("");
+  const [selectedCommonRun, setSelectedCommonRun] = useState(null);
+  const [followLatestRun, setFollowLatestRun] = useState(true);
   const [selectedRunId, setSelectedRunId] = useState("");
   const [selectedRun, setSelectedRun] = useState(null);
   const [monitorLoading, setMonitorLoading] = useState(true);
+  const [commonLoading, setCommonLoading] = useState(true);
+  const [commonDetailLoading, setCommonDetailLoading] = useState(false);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
   const [monitorError, setMonitorError] = useState("");
+  const [commonError, setCommonError] = useState("");
   const [runDetailError, setRunDetailError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
   const [activeTab, setActiveTab] = useState("agents");
@@ -593,6 +869,17 @@ export default function App() {
   const [uiConfig, setUiConfig] = useState({ show_progress_bar: true, show_agent_logs: true, show_artifacts: true, show_chat: true });
   const [liveEvent, setLiveEvent] = useState(null);
   const [liveConnectionState, setLiveConnectionState] = useState("idle");
+  const [commonConnectionState, setCommonConnectionState] = useState("idle");
+  const selectedCommonRunIdRef = useRef("");
+  const followLatestRunRef = useRef(true);
+
+  useEffect(() => {
+    selectedCommonRunIdRef.current = selectedCommonRunId;
+  }, [selectedCommonRunId]);
+
+  useEffect(() => {
+    followLatestRunRef.current = followLatestRun;
+  }, [followLatestRun]);
 
   async function loadSession(sessionId) {
     if (!sessionId) return;
@@ -642,6 +929,50 @@ export default function App() {
     }
   }
 
+  function applyCommonRunsSnapshot(data, source = "poll") {
+    setCommonRuns((current) => {
+      const nextRuns = data.recent_runs || [];
+      const currentRuns = current.recent_runs || [];
+      if (nextRuns.length === 0 && currentRuns.length > 0) {
+        return {
+          ...current,
+          warnings: [...(data.warnings || []), `${source === "sse" ? "Live update" : "Refresh"} returned no runs; keeping the last successful snapshot on screen.`],
+        };
+      }
+      return data;
+    });
+    const shouldFollowLatest = followLatestRunRef.current;
+    const latestId = data.latest_run?.run_id || data.recent_runs?.[0]?.run_id || "";
+    setSelectedCommonRunId((current) => {
+      if (!current) return latestId;
+      if (shouldFollowLatest && latestId) return latestId;
+      return current;
+    });
+    if (shouldFollowLatest && data.latest_run) {
+      setSelectedCommonRun(data.latest_run);
+    }
+    setLastUpdated(new Date().toISOString());
+  }
+
+  async function loadCommonRuns(source = "poll") {
+    try {
+      const response = await fetch(`${API_BASE}/api/runs`);
+      if (!response.ok) throw new Error(`Common runs load failed: ${response.status}`);
+      const data = await response.json();
+      applyCommonRunsSnapshot(data, source);
+      const latestId = data.latest_run?.run_id || data.recent_runs?.[0]?.run_id || "";
+      const detailId = followLatestRunRef.current ? latestId : selectedCommonRunIdRef.current || latestId;
+      if (detailId) {
+        await loadCommonRunDetail(detailId);
+      }
+      setCommonError("");
+    } catch (err) {
+      setCommonError(`${err.message || "Failed to load common runs"}; keeping the last successful snapshot if available.`);
+    } finally {
+      setCommonLoading(false);
+    }
+  }
+
   async function loadRunDetail(runId) {
     if (!runId) return;
     setRunDetailLoading(true);
@@ -659,12 +990,34 @@ export default function App() {
     }
   }
 
+  async function loadCommonRunDetail(runId) {
+    if (!runId) return;
+    setCommonDetailLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/runs/${encodeURIComponent(runId)}`);
+      if (!response.ok) throw new Error(`Common run detail load failed: ${response.status}`);
+      const data = await response.json();
+      setSelectedCommonRun(data);
+      setCommonError("");
+    } catch (err) {
+      setCommonError(`${err.message || "Failed to load common run detail"}; keeping the last successful snapshot if available.`);
+    } finally {
+      setCommonDetailLoading(false);
+    }
+  }
+
   useEffect(() => {
-    loadMonitor();
+    loadCommonRuns("initial");
     fetch(`${API_BASE}/api/v1/dashboard/config`).then((response) => response.ok ? response.json() : null).then((data) => data && setUiConfig(data)).catch(() => {});
-    const timer = window.setInterval(loadMonitor, 15000);
-    return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    setCommonConnectionState("manual");
+  }, []);
+
+  useEffect(() => {
+    if (selectedCommonRunId) loadCommonRunDetail(selectedCommonRunId);
+  }, [selectedCommonRunId]);
 
   useEffect(() => {
     if (selectedRunId) loadRunDetail(selectedRunId);
@@ -728,6 +1081,9 @@ export default function App() {
   const recentFailureTrend = run?.recent_agent_failure_trend || [];
   const reliabilitySnapshot = run?.agent_reliability_snapshot || [];
   const unknownRuns = allRunsSummary.unknown_runs || [];
+  const commonRun = selectedCommonRun || commonRuns.latest_run;
+  const commonRunList = commonRuns.recent_runs || [];
+  const noCommonRuns = !commonLoading && commonRunList.length === 0;
 
   const allRunsMetrics = useMemo(
     () => [
@@ -782,6 +1138,19 @@ export default function App() {
     trustGates,
     liveEvent,
   });
+  const selectCommonRun = (runId) => {
+    setFollowLatestRun(false);
+    setSelectedCommonRunId(runId);
+  };
+  const resumeLatestRun = () => {
+    const latestId = commonRuns.latest_run?.run_id || commonRunList[0]?.run_id || "";
+    setFollowLatestRun(true);
+    if (latestId) {
+      setSelectedCommonRunId(latestId);
+      setSelectedCommonRun(commonRuns.latest_run || null);
+      loadCommonRunDetail(latestId);
+    }
+  };
 
   return (
     <main
@@ -792,32 +1161,27 @@ export default function App() {
     >
       <header className="topbar">
         <div className="topbar-title">
-          <p className="eyebrow">AI Company</p>
-          <h1>{run?.spec_id || "Mission Control"}</h1>
-          <p className="subcopy">{run?.goal || "Monitor bounded multi-agent runs, trust checks, profile governance, and recovery signals."}</p>
+          <p className="eyebrow">Agent Tasks</p>
+          <h1>{commonRun?.headline || "Mission Control"}</h1>
+          <p className="subcopy">{commonRun?.explanation || "Watch task status, progress, outputs, verification, and the next useful action."}</p>
         </div>
 
         <div className="topbar-actions">
-          <label className="run-picker">
-            <span>Run</span>
-            <select value={selectedRunId} onChange={(event) => setSelectedRunId(event.target.value)} disabled={noRuns}>
-              {noRuns ? <option>No runs yet</option> : null}
-              {(monitor.recent_runs || []).map((item) => (
-                <option key={item.run_id} value={item.run_id}>
-                  {item.run_id}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CommonRunPicker runs={commonRunList} selectedRunId={selectedCommonRunId} onSelect={selectCommonRun} disabled={noCommonRuns} />
 
-          <button type="button" className="refresh-button" onClick={loadMonitor}>
-            {monitorLoading ? "Loading" : "Refresh"}
+          <button type="button" className="refresh-button" onClick={resumeLatestRun} disabled={noCommonRuns || followLatestRun}>
+            {followLatestRun ? "Latest selected" : "Select latest"}
           </button>
-          <span className="last-updated">Updated {lastUpdated ? formatDate(lastUpdated) : "n/a"}</span>
+
+          <button type="button" className="refresh-button" onClick={() => loadCommonRuns("manual")}>
+            {commonLoading || commonDetailLoading ? "Loading" : "Refresh"}
+          </button>
+          <span className="last-updated">{commonConnectionState === "manual" ? "Manual refresh" : "Idle"} · Updated {lastUpdated ? formatDate(lastUpdated) : "n/a"}</span>
         </div>
       </header>
 
-      {monitorError ? <p className="error-banner">{monitorError}</p> : null}
+      {commonError ? <p className="warning-banner">{commonError}</p> : null}
+      {(commonRuns.warnings || []).length ? <p className="warning-banner">{commonRuns.warnings[0]}</p> : null}
       {runDetailError ? <p className="error-banner">{runDetailError}</p> : null}
 
       {uiConfig.show_chat ? <details className="surface session-console">
@@ -851,23 +1215,24 @@ export default function App() {
         </div>
       </details> : null}
 
-      {noRuns ? (
+      {noCommonRuns ? (
         <section className="empty-state surface">
-          <SectionHeader title="No runs yet" meta="Generate a compatible ai-company run to populate this dashboard." />
+          <SectionHeader title="No task runs found" meta="Run an agent task or validation flow to populate this dashboard." />
+          <div className="command-examples">
+            <code>bash scripts/run-validation.sh</code>
+            <code>powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-agent-micro-gates.ps1</code>
+          </div>
         </section>
       ) : null}
 
-      {!noRuns ? (
-        <>
-          <UserHero presentation={userPresentation} runId={run?.run_id || selectedRunSummary?.run_id || selectedRunId} />
-          <section className="user-dashboard-grid">
-            <LiveProgressPanel progress={userPresentation.progress} connectionState={liveConnectionState} />
-            <AgentStatusStrip agents={userPresentation.agents} />
-            <PrimaryResultPanel presentation={userPresentation} />
-            <TrustSummaryPanel trustSummary={userPresentation.trustSummary} />
-          </section>
-          <RecentRunsCompact runs={monitor.recent_runs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />
-        </>
+      {!noCommonRuns ? (
+        <CommonTaskDashboard
+          run={commonRun}
+          runs={commonRunList}
+          selectedRunId={selectedCommonRunId}
+          onSelect={selectCommonRun}
+          connectionState={commonConnectionState}
+        />
       ) : null}
 
       <details className="surface technical-details-shell">

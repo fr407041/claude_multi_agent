@@ -6,13 +6,45 @@ import os
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app.db import get_db, init_db
-from app.services.ai_company_monitor import _build_agent_state_board, _build_alerts, collect_ai_company_monitor, get_ai_company_run_detail
+from app.services.ai_company_monitor import _build_agent_state_board, _build_alerts, _normalize_claims, collect_ai_company_monitor, get_ai_company_run_detail
 
 
 class AiCompanyMonitorStateBoardTest(unittest.TestCase):
+    def test_failed_run_never_emits_healthy_alert(self) -> None:
+        alerts = _build_alerts(
+            {"overall_status": "fail", "error": "manifest truncated", "kpis": {}},
+            {"watchdog_status": "escalated", "last_action": "WATCHDOG_ESCALATION_REQUIRED"},
+            {"all_passed": False, "checks": {"executor_success": False}},
+        )
+        self.assertFalse(any(item["type"] == "healthy" for item in alerts))
+        self.assertTrue(any(item["type"] == "run_failed" and item["severity"] == "red" for item in alerts))
+
+    def test_domain_failure_never_emits_healthy_alert(self) -> None:
+        alerts = _build_alerts(
+            {"overall_status": "pass", "kpis": {}},
+            {"watchdog_status": "healthy"},
+            {"all_passed": True},
+            {
+                "enabled": True,
+                "status": "fail",
+                "defects": [{"kind": "invariant", "artifact": "kpi.json", "path": "parsed_count", "reason": "value_mismatch"}],
+            },
+        )
+        self.assertFalse(any(item["type"] == "healthy" for item in alerts))
+        domain_alert = next(item for item in alerts if item["type"] == "domain_verdict_failed")
+        self.assertIn("kpi.json:parsed_count", domain_alert["detail"])
+
+    def test_claim_evidence_refs_are_normalized(self) -> None:
+        claims = _normalize_claims([{"claim": "ok", "evidence_refs": ["results/raw.txt", {"path": "worktree/out.json"}, {}]}])
+        self.assertEqual(claims[0]["evidence_refs"], [
+            {"type": "file", "path": "results/raw.txt"},
+            {"type": "file", "path": "worktree/out.json"},
+        ])
+
     def test_package_integrity_failure_is_not_reported_as_model_failure(self) -> None:
         alerts = _build_alerts(
             {
@@ -139,6 +171,72 @@ class AiCompanyMonitorStateBoardTest(unittest.TestCase):
 
 
 class AiCompanyMonitorSummaryTest(unittest.TestCase):
+    def test_sync_ignores_alias_directories_and_selects_newest_failed_run(self) -> None:
+        root = Path(self.tempdir.name) / "runs"
+        for name in ["latest", "live_mode"]:
+            (root / name).mkdir(parents=True)
+        for name, started_at, status in [
+            ("run-old-pass", "2026-07-11T01:00:00+00:00", "pass"),
+            ("run-new-fail", "2026-07-11T02:00:00+00:00", "fail"),
+        ]:
+            ai_dir = root / name / "ai_company"
+            ai_dir.mkdir(parents=True)
+            (ai_dir / "task_harness_report.json").write_text(json.dumps({
+                "spec_id": "action-test", "started_at": started_at, "overall_status": status,
+                "error": "failed" if status == "fail" else "", "kpis": {"artifact_score": 1.0 if status == "pass" else 0.0},
+            }), encoding="utf-8")
+        with get_db() as connection:
+            with patch("app.services.ai_company_monitor.get_results_root", return_value=root):
+                snapshot = collect_ai_company_monitor(connection)
+        self.assertEqual(snapshot["all_runs_summary"]["total_runs"], 2)
+        self.assertEqual(snapshot["selected_run_preview"]["run_id"], "run-new-fail")
+        self.assertEqual(snapshot["selected_run_preview"]["overall_status"], "fail")
+
+    def test_synced_domain_failure_overrides_reported_pass(self) -> None:
+        root = Path(self.tempdir.name) / "domain-runs"
+        ai_dir = root / "run-domain-fail" / "ai_company"
+        ai_dir.mkdir(parents=True)
+        (ai_dir / "task_harness_report.json").write_text(json.dumps({
+            "spec_id": "domain-test", "started_at": "2026-07-11T03:00:00+00:00", "overall_status": "pass", "kpis": {"artifact_score": 1.0},
+        }), encoding="utf-8")
+        (ai_dir / "domain_verdict.json").write_text(json.dumps({
+            "enabled": True, "status": "fail", "score": 0.5,
+            "checks": [{"status": "failed"}],
+            "defects": [{"kind": "invariant", "artifact": "kpi.json", "path": "parsed_count", "reason": "value_mismatch"}],
+            "validator_source": "runner_owned",
+        }), encoding="utf-8")
+        with get_db() as connection:
+            with patch("app.services.ai_company_monitor.get_results_root", return_value=root):
+                snapshot = collect_ai_company_monitor(connection)
+                detail = get_ai_company_run_detail(connection, "run-domain-fail")
+        self.assertEqual(snapshot["selected_run_preview"]["overall_status"], "fail")
+        self.assertEqual(detail["final_result"]["domain_verdict"]["status"], "fail")
+        self.assertTrue(any(item["type"] == "domain_verdict_failed" for item in detail["alerts"]))
+
+    def test_canonical_goal_verdict_and_dag_are_exposed_without_ui_inference(self) -> None:
+        root = Path(self.tempdir.name) / "goal-runs"
+        ai_dir = root / "run-goal-fail" / "ai_company"
+        ai_dir.mkdir(parents=True)
+        (ai_dir / "task_harness_report.json").write_text(json.dumps({
+            "spec_id": "goal-test", "started_at": "2026-07-11T04:00:00+00:00", "overall_status": "pass", "kpis": {},
+        }), encoding="utf-8")
+        (ai_dir / "final_run_verdict.json").write_text(json.dumps({
+            "overall_status": "fail", "root_failed_job": "job-001", "failure_category": "INPUT_INSUFFICIENT",
+            "blocked_descendants": ["job-002"], "next_action": "Repair job-001", "source": "canonical_final_run_verdict",
+        }), encoding="utf-8")
+        (ai_dir / "goal_plan.json").write_text(json.dumps({"jobs": [
+            {"id": "job-001", "capability": "acquire", "depends_on": [], "outputs": ["evidence.json"]},
+            {"id": "job-002", "capability": "synthesize", "depends_on": ["job-001"], "outputs": ["summary.md"]},
+        ]}), encoding="utf-8")
+        (ai_dir / "dependency_state.json").write_text(json.dumps({"states": {"job-001": {"state": "failed"}, "job-002": {"state": "blocked"}}}), encoding="utf-8")
+        with get_db() as connection:
+            with patch("app.services.ai_company_monitor.get_results_root", return_value=root):
+                collect_ai_company_monitor(connection)
+                detail = get_ai_company_run_detail(connection, "run-goal-fail")
+        self.assertEqual(detail["overall_status"], "fail")
+        self.assertEqual(detail["final_run_verdict"]["root_failed_job"], "job-001")
+        self.assertEqual(detail["goal_dag"]["dependency_state"]["states"]["job-002"]["state"], "blocked")
+
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.tempdir.name, "agent_os_monitor_test.db")

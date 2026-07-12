@@ -29,10 +29,20 @@ Use this skill only for repository installation and health checks. It is not the
 From the repository root:
 
 ```bash
-bash scripts/doctor.sh
-bash scripts/init-runtime.sh
-python3 scripts/verify_install.py --strict --json
-python3 scripts/run_ai_company_task_harness.py docs/ai_specs/ai-company-release-readiness-strict-demo.json --mode mock
+bash skills/install-multi-agent-runtime/scripts/install.sh
+```
+
+This prepares the project-local dashboard as part of installation. Start it with:
+
+```bash
+bash agent_os_mvp/start-dashboard.sh
+```
+
+Default URLs:
+
+```text
+Backend health: http://127.0.0.1:18010/health
+Frontend:       http://127.0.0.1:15174/
 ```
 
 After installation, use the operation skill:

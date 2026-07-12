@@ -75,8 +75,8 @@ npm install
 cat <<EOF
 Dashboard installed.
 Dashboard dir: ${DASHBOARD_DIR}
-Backend health: http://127.0.0.1:8010/health
-Frontend URL: http://127.0.0.1:5174
+Backend health: http://127.0.0.1:18010/health
+Frontend URL: http://127.0.0.1:15174
 Start with:
-  bash ${SKILL_DIR}/scripts/start_dashboard.sh
+  bash agent_os_mvp/start-dashboard.sh
 EOF

@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from app.db import get_db, init_db
+from app.services.agent_engine import create_goal, execute_task, plan_tasks
+from app.services.common_runs import collect_common_runs, get_common_run_detail
+
+
+class CommonRunsAdapterTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tempdir.name) / "agent_os.db"
+        self.env_patch = patch.dict("os.environ", {"AGENT_OS_DB_PATH": str(self.db_path)}, clear=False)
+        self.env_patch.start()
+        init_db()
+
+    def tearDown(self) -> None:
+        self.env_patch.stop()
+        self.tempdir.cleanup()
+
+    def test_empty_runs_are_generic(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+                snapshot = collect_common_runs()
+        self.assertEqual(0, snapshot["overview"]["total_runs"])
+        self.assertEqual([], snapshot["recent_runs"])
+
+    def test_micro_gate_failure_is_common_needs_attention_not_case_headline(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            run_set = root / "micro-gates-20260712T010203Z"
+            run_set.mkdir()
+            verifier = run_set / "gate-D" / "verifier-result.json"
+            verifier.parent.mkdir()
+            verifier.write_text(json.dumps({"pass": False}), encoding="utf-8")
+            summary = {
+                "run_set_id": run_set.name,
+                "run_set_dir": str(run_set),
+                "started_at_utc": "2026-07-12T01:02:03Z",
+                "finished_at_utc": "2026-07-12T01:03:03Z",
+                "pass": False,
+                "failed_gate": "D",
+                "gates": [
+                    {"gate": "A", "api_status": "succeeded", "return_code": 0, "verifier_pass": True, "verifier_exit_code": 0, "run_dir": str(root / "run-a")},
+                    {"gate": "D", "api_status": "succeeded", "return_code": 0, "verifier_pass": False, "verifier_exit_code": 1, "run_dir": str(root / "run-d"), "verifier_result_path": str(verifier)},
+                ],
+            }
+            (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+                snapshot = collect_common_runs()
+                detail = get_common_run_detail(run_set.name)
+
+        latest = snapshot["latest_run"]
+        self.assertEqual("Needs attention", latest["user_status"])
+        self.assertEqual("Validation failed at Gate D.", latest["headline"])
+        self.assertNotIn("Stock", latest["headline"])
+        self.assertNotIn("PTT", latest["headline"])
+        self.assertEqual("single artifact creation", detail["technical_details"]["validation_details"][1]["capability"])
+        self.assertEqual("ptt-stock-live/article.json", detail["technical_details"]["validation_details"][1]["expected_artifact"])
+
+    def test_micro_gate_all_pass_is_completed(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_set = Path(tempdir) / "micro-gates-20260712T020304Z"
+            run_set.mkdir()
+            summary = {
+                "run_set_id": run_set.name,
+                "started_at_utc": "2026-07-12T02:03:04Z",
+                "finished_at_utc": "2026-07-12T02:04:04Z",
+                "pass": True,
+                "gates": [
+                    {"gate": "A", "api_status": "succeeded", "return_code": 0, "verifier_pass": True, "verifier_exit_code": 0},
+                    {"gate": "B", "api_status": "succeeded", "return_code": 0, "verifier_pass": True, "verifier_exit_code": 0},
+                ],
+            }
+            (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+                snapshot = collect_common_runs()
+        self.assertEqual("Completed", snapshot["latest_run"]["user_status"])
+        self.assertEqual("pass", snapshot["latest_run"]["verification"]["status"])
+
+    def test_malformed_micro_gate_summary_does_not_crash(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_set = Path(tempdir) / "micro-gates-bad"
+            run_set.mkdir()
+            (run_set / "run-summary.json").write_text("{bad", encoding="utf-8")
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir}, clear=False):
+                snapshot = collect_common_runs()
+        self.assertEqual("Needs attention", snapshot["latest_run"]["user_status"])
+        self.assertEqual("Validation run could not be read.", snapshot["latest_run"]["headline"])
+
+    def test_agent_task_run_exposes_planning_collaboration_and_review(self) -> None:
+        with get_db() as connection:
+            goal_id = create_goal(connection, "Demo planning flow", "Show planner, workbuddy assignment, execution, and review.")
+            tasks = plan_tasks(connection, goal_id, "Demo planning flow", "Show planner, workbuddy assignment, execution, and review.")
+            for task in tasks:
+                execute_task(connection, task["id"])
+            connection.commit()
+
+            snapshot = collect_common_runs(connection)
+            detail = get_common_run_detail(f"agent-goal-{goal_id}", connection)
+
+        self.assertEqual("agent_task", detail["run_type"])
+        self.assertEqual("Completed", detail["user_status"])
+        self.assertEqual("Task completed after planning and review.", detail["headline"])
+        self.assertEqual("pass", detail["verification"]["checks"][0]["status"])
+        self.assertGreaterEqual(len(detail["technical_details"]["meeting"]["collaboration_notes"]), 4)
+        self.assertEqual(f"agent-goal-{goal_id}", snapshot["latest_run"]["run_id"])
+
+
+if __name__ == "__main__":
+    unittest.main()

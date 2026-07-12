@@ -1,114 +1,91 @@
 # Agent OS MVP Dashboard
 
-This folder contains a lightweight dashboard for AI-company run artifacts.
+Local dashboard for viewing multi-agent run artifacts.
 
-It supports a simple local mode and an optional session-service mode:
+It does not start an LLM, install Ollama, modify Claude Code, or change Router
+configuration. It reads project-local artifacts and presents a common task view.
 
-- FastAPI backend
-- SQLite metadata cache by default; PostgreSQL in Docker Compose
-- React + Vite frontend
-- Linux helper scripts
+## Ubuntu 22.04 common path
 
-## What It Reads
-
-The dashboard does not run `claude` or `ccr`. It reads artifacts from:
-
-```text
-results/ai_company_task_harness/<run-id>/ai_company/
-```
-
-It shows:
-
-- All runs summary
-- Current run agent board
-- trustworthiness and artifact checks
-- failures by agent
-- profile governance
-- claim/evidence summary
-- memory guard and watchdog state
-
-The optional Main Agent Chat invokes the installed Claude CLI and inherits its existing Router configuration. It records only explicit messages, lifecycle events, and artifact references, never hidden reasoning.
-
-## Session And Chat API
-
-```text
-POST /api/v1/chat
-GET  /api/v1/dashboard/{session_id}
-GET  /api/v1/dashboard/config
-```
-
-Chat requests use `{"prompt":"Run a bounded task","session_id":null}`. Reuse the returned `session_id` on later turns. Session artifacts are written below `AGENT_OS_SESSION_ROOT`.
-
-## Quick Start
+Install from the repository root:
 
 ```bash
-cd agent_os_mvp/backend
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-cd ../frontend
-npm install
-cd ..
-bash ./start-dashboard.sh
+bash skills/install-multi-agent-runtime/scripts/install.sh
+```
+
+Start:
+
+```bash
+bash agent_os_mvp/start-dashboard.sh
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:5174
+http://127.0.0.1:15174/
 ```
 
-`start-dashboard.sh` builds the React production bundle and serves it with Vite preview. It does not expose the Vite development runtime.
+Health:
 
-The backend reads `results/ai_company_task_harness` by default. Point it at an externally mounted run root when needed:
-
-```bash
-AI_COMPANY_RESULTS_ROOT=/runs/company_tasks bash ./start-dashboard.sh
-```
-
-For strict browser-level smoke validation with Chrome or Chromium:
-
-```bash
-AGENT_OS_REQUIRE_BROWSER_SMOKE=1 bash ./smoke-dashboard.sh
+```text
+http://127.0.0.1:18010/health
 ```
 
 Stop:
 
 ```bash
-bash ./stop-dashboard.sh
+bash agent_os_mvp/stop-dashboard.sh
 ```
 
-## Frontend Toolchain
+## What it shows
 
-The frontend is pinned to a reproducible Vite 7 toolchain:
+- current task status
+- progress snapshot
+- agent status
+- primary result
+- generated outputs
+- verification summary
+- meeting discussion and task plan when available
+- technical details behind expandable sections
 
-- `vite: 7.3.6`
-- `@vitejs/plugin-react: 5.2.0`
+Completed runs use `Review outputs` instead of opening a webpage directly.
+`Generated outputs` lists actual files/folders, existence, type, size, modified
+time, and safe previews.
 
-Clean `npm ci` and `npm run build` are expected to pass on Node 20 and Node 22.
+## Configuration
 
-## Skill Install Path
+Default ports:
 
-Company users normally use:
+```env
+DASHBOARD_BACKEND_PORT=18010
+DASHBOARD_FRONTEND_PORT=15174
+```
+
+Runtime env overrides:
 
 ```bash
-bash .claude/skills/research-task-orchestrator/scripts/install_dashboard.sh
-bash .claude/skills/research-task-orchestrator/scripts/start_dashboard.sh
+AGENT_OS_BACKEND_PORT=28010 \
+AGENT_OS_FRONTEND_PORT=25174 \
+AGENT_OS_PUBLIC_API_BASE_URL=http://127.0.0.1:28010 \
+bash agent_os_mvp/start-dashboard.sh
 ```
 
-The skill installer copies bundled dashboard assets into `./agent_os_mvp`, installs Python/npm dependencies, then starts the local services.
-
-## Docker Compose With PostgreSQL
+## Smoke check
 
 ```bash
-export CLAUDE_CONFIG_DIR="$HOME/.claude"
-export AGENT_OS_POSTGRES_PASSWORD="change-this-local-password"
-docker compose up --build
+bash agent_os_mvp/smoke-dashboard.sh
 ```
 
-Docker mode installs Claude Code in the backend image and mounts the existing Claude configuration read-only. Direct Ubuntu installation continues to use SQLite and does not require Docker or PostgreSQL.
+## Advanced Docker mode
 
-## Do Not Commit Runtime Outputs
+Docker Compose is for CI, maintainers, and isolated reproduction only.
+
+```bash
+cd agent_os_mvp
+docker compose up -d --build
+```
+
+## Do not commit runtime outputs
 
 Do not commit:
 
@@ -116,6 +93,6 @@ Do not commit:
 - `frontend/node_modules/`
 - `frontend/dist/`
 - `logs/`
-- `data/`
+- `backend/data/`
 - `*.db`
 - `*.sqlite`

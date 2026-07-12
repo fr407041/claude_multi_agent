@@ -258,7 +258,7 @@
   "skill_files": [
     {
       "path": "SKILL.md",
-      "sha256": "dbbdea5e725c2c77bf59c40832e85bf0fbe2386a367a7b9712243319db3387f8"
+      "sha256": "e7f475a2511fcc7132c44d493d04649f606a2e21ae4595f27095cf6fe0421c30"
     },
     {
       "path": "agents/openai.yaml",
@@ -274,11 +274,11 @@
     },
     {
       "path": "scripts/install_dashboard.sh",
-      "sha256": "cda0b8851920909696c88329c8941b01c70ac279e2925cdfb07f2cb682579dab"
+      "sha256": "4f69da5e2d6671b322972bb0d2ce11783601ddfbcae6e3dbb5684019a0823dc1"
     },
     {
       "path": "scripts/start_dashboard.sh",
-      "sha256": "cc52055c1807bb5a00e49489725859280369104eb9566d25476fbab19b581de6"
+      "sha256": "4a77124c51b14340b24156ed60b52fa6885f612a89691711d8b87ff5e2a2fc63"
     },
     {
       "path": "scripts/stop_dashboard.sh",
@@ -294,7 +294,7 @@
     },
     {
       "path": "assets/agent_os_mvp/backend/app/services/ai_company_monitor.py",
-      "sha256": "39d74214eb52307f7bfd90c2596cc4dc7c6796f5c94831c4595cf3fa02510b03"
+      "sha256": "662448f9ff937339e3391cf55e76d67b0a846247ed7fdfcff87980af4277b786"
     },
     {
       "path": "assets/agent_os_mvp/backend/app/services/session_store.py",
@@ -318,15 +318,15 @@
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/App.jsx",
-      "sha256": "8c62dac0e842eaa5786f26474735c1475d061a5a82f905754d07318e20ccc410"
+      "sha256": "91cf68ce47dcfef1c8e2554ee344865bf8ccf094eb183f59be2be08c1b35dc19"
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/styles.css",
-      "sha256": "049d761af3bb5454836381f8e8b1e79e2c875bcd4d8a4768b6f5b6ee974954a9"
+      "sha256": "f2505c3efa166473ee006074ef946a9cada64c07e2c9e1495a535154cfdb92ff"
     },
     {
       "path": "assets/agent_os_mvp/start-dashboard.sh",
-      "sha256": "b2895d18e272919f64e06ff82dc98c98911d06b1261d97f81637d4f9e915d1b4"
+      "sha256": "efe198bbdf528145dc79e750ae91f173388d98028fa60dec783c2bb554717ec3"
     },
     {
       "path": "assets/agent_os_mvp/stop-dashboard.sh",
@@ -334,7 +334,7 @@
     },
     {
       "path": "assets/agent_os_mvp/smoke-dashboard.sh",
-      "sha256": "be42ba0becce13e065b4d8d08c24b220db8d757c795cbb551d9fe70bb2f6a2b5"
+      "sha256": "781c1ee1ae3676ba6649d111015628d69b95c58408e7f2a6d35028bcca402069"
     }
   ]
 }

@@ -1,10 +1,10 @@
-# Skill 分層：安裝 Skill vs 操作 Skill
+# Skill 分離：安裝 Skill vs 操作 Skill
 
-Issue #30 的核心是：不要把「build/install 這個 repo」和「backend agent 執行多代理任務」混在同一個 skill。
+本專案刻意分成兩個 skill，避免使用者同時理解 install、dashboard、runtime、agent task、verification。
 
 ## 安裝 skill
 
-位置：
+路徑：
 
 ```text
 skills/install-multi-agent-runtime/
@@ -12,23 +12,30 @@ skills/install-multi-agent-runtime/
 
 用途：
 
-- 初始化 `.env`
-- 建立 runs/results/logs 目錄
-- 執行 doctor checks
-- 執行 mock verification
+- 第一次 clone 後初始化 repo
+- 建立 `.env`
+- 建立 `agent-runs/`、`results/`、`logs/`
+- 安裝 dashboard backend/frontend dependencies
+- 跑 doctor 與 strict install verification
 - 確認 operation skill 存在
-- 引導 dashboard/backend 啟動方式
 
-禁止：
+Common command：
+
+```bash
+bash skills/install-multi-agent-runtime/scripts/install.sh
+```
+
+安裝 skill 不做：
 
 - 不修改 Claude Code 設定
 - 不修改 Claude Code Router 設定
-- 不指定 model/provider/output token
-- 不執行使用者的實際研究任務
+- 不選 model/provider/output token
+- 不安裝 Ollama 或模型服務
+- 不執行使用者業務任務
 
 ## 操作 skill
 
-位置：
+路徑：
 
 ```text
 .claude/skills/research-task-orchestrator/
@@ -37,19 +44,28 @@ skills/install-multi-agent-runtime/
 用途：
 
 - 接受使用者任務
-- 使用既有 Claude/Router/runtime
-- 執行 bounded multi-agent workflow
+- 開會議 / 分派 agent / 執行 bounded workflow
 - 產生 artifacts
-- 支援 dashboard 與 verification
+- 執行 verifier、watchdog、claim ledger
+- 啟動或查看已安裝好的 dashboard
 
-禁止：
+使用方式：
+
+```text
+Use the research-task-orchestrator skill to run: <your task>
+```
+
+操作 skill 不做：
 
 - 不負責 repo 安裝
-- 不負責教使用者 build repo
-- 不修改 global Claude/Router/model 設定
+- 不替使用者改 Claude/Router/model/token
+- 不把 process exit 0 當 verified success
 
-## 使用者心智模型
+## 架構差異
 
-- 第一次：用 install skill。
-- 日常任務：用 operation skill。
-- Live 設定：沿用使用者自己的 Claude Code / Router 預設。
+這不是重寫核心 runtime，而是把入口切清楚：
+
+- install skill = 準備環境
+- operation skill = 跑任務
+- dashboard = 看 artifacts 與 verification
+- Docker Compose = advanced isolated reproduction

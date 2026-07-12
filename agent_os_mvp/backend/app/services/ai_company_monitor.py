@@ -60,11 +60,22 @@ PRIMARY_RUN_STATUSES = {"pass", "fail", "partial"}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    errors: list[str] = []
+    for encoding in ("utf-8", "utf-8-sig", "utf-16"):
+        try:
+            return json.loads(path.read_text(encoding=encoding))
+        except Exception as exc:
+            errors.append(f"{encoding}: {exc}")
+    raise json.JSONDecodeError("; ".join(errors), "", 0)
 
 
 def _read_text(path: Path) -> str:
-    return path.read_text(encoding="utf-8", errors="ignore").strip()
+    for encoding in ("utf-8-sig", "utf-8", "utf-16"):
+        try:
+            return path.read_text(encoding=encoding, errors="ignore").strip()
+        except Exception:
+            continue
+    return path.read_text(errors="ignore").strip()
 
 
 def _parse_run_started_at(run_name: str) -> str | None:

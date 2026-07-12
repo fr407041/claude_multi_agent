@@ -1,13 +1,13 @@
 ---
 name: research-task-orchestrator
-description: Run bounded multi-agent research or analysis tasks through Claude Code plus router with a meeting phase, compact evidence preparation, small child-job dispatch, artifact verification, strict/custom subagent profiles, and an installable web dashboard. Use when Codex needs to turn an open-ended research request into a measurable workflow that avoids token overflow, detects false success, limits agent tools/skills/MCP scope, records meeting decisions/task assignment/KPI results, or installs/starts/uses the bundled ai-company dashboard.
+description: Run bounded multi-agent research or analysis tasks through Claude Code plus router with a meeting phase, compact evidence preparation, small child-job dispatch, artifact verification, strict/custom subagent profiles, and a local dashboard viewer. Use after repository installation to turn an open-ended research request into a measurable workflow that avoids token overflow, detects false success, limits agent tools/skills/MCP scope, records meeting decisions/task assignment/KPI results, or starts/uses the bundled ai-company dashboard.
 ---
 
 # Research Task Orchestrator
 
 Use this skill to run a reusable `ai-company` style workflow without sending broad context to a child worker.
 
-The skill bundles the verified orchestration runtime and lightweight web dashboard. Installing the skill alone is enough to create a project-local runtime on first use.
+The skill bundles the verified orchestration runtime and lightweight web dashboard viewer. Repository and dashboard installation are handled by the separate `install-multi-agent-runtime` skill.
 
 ## Workflow
 
@@ -38,7 +38,7 @@ The skill bundles the verified orchestration runtime and lightweight web dashboa
 - In strict profile mode, preserve role profile, allowed skills, MCP group, tool policy, settings overlay, and policy level in run artifacts.
 - Enable the main-agent memory guard for token-overflow-prone, long-running, large research, or multi-round analysis tasks.
 - Enable the file context guard before any worker reads task files. Inspect file size first, load only bounded chunks, and record included/skipped bytes in the worker status.
-- When a user asks for the web UI, dashboard, monitor, or latest run view, install the bundled dashboard if it is not already present.
+- When a user asks for the web UI, dashboard, monitor, or latest run view, start or inspect the project-local dashboard. If dashboard dependencies are missing, tell the user to run `bash skills/install-multi-agent-runtime/scripts/install.sh`.
 - When a user asks to monitor a run, check whether work is stuck, or recover a silent failure, run the main-agent watchdog instead of relying on dashboard display alone.
 - Do not install Claude Code, Claude Code Router, or model services. This skill assumes those already exist in the company Ubuntu environment.
 - Run strict package and spec preflight before every task. Do not start a meeting or worker when package integrity, worker template, verifier, or artifact contract validation fails.
@@ -107,7 +107,7 @@ This skill must support these natural-language calls:
 - "Use the research-task-orchestrator skill to inspect profile violations in the latest run."
 - "Use the research-task-orchestrator skill to run in simple mode: <task>"
 
-When invoked this way, do not ask the user to manually edit JSON unless required. Generate or update the spec, run the bounded workflow, and report the run path, dashboard URL, selected profile mode, KPIs, and any violations.
+When invoked this way, do not ask the user to manually edit JSON unless required. Generate or update the spec, run the bounded workflow, and report the run path, dashboard URL, selected profile mode, KPIs, and any violations. If the repository is not installed, stop and tell the user to run the install skill first.
 
 ## How to use the generic pattern
 
@@ -133,24 +133,24 @@ Design rules:
 - Use the existing FastAPI + React stack. SQLite is the direct-Ubuntu default; PostgreSQL is optional for Docker Compose deployments.
 - Record explicit messages, status, tool/action metadata, and artifact references only. Never request, store, or display hidden chain-of-thought.
 
-Dashboard installation flow:
+Dashboard usage flow:
 
 1. Locate the project root. Prefer `AI_COMPANY_PROJECT_ROOT` when set; otherwise use the current git root; otherwise use the current working directory.
-2. If `./agent_os_mvp/backend/.venv` or `./agent_os_mvp/frontend/node_modules` is missing, run:
+2. If `./agent_os_mvp/backend/.venv` or `./agent_os_mvp/frontend/node_modules` is missing, stop and tell the user to install first:
 
 ```bash
-bash .claude/skills/research-task-orchestrator/scripts/install_dashboard.sh
+bash skills/install-multi-agent-runtime/scripts/install.sh
 ```
 
 3. Start the dashboard with:
 
 ```bash
-bash .claude/skills/research-task-orchestrator/scripts/start_dashboard.sh
+bash agent_os_mvp/start-dashboard.sh
 ```
 
 4. Show the user:
-   - Backend health: `http://127.0.0.1:8010/health`
-   - Frontend URL: `http://127.0.0.1:5174`
+   - Backend health: `http://127.0.0.1:18010/health`
+   - Frontend URL: `http://127.0.0.1:15174`
    - Artifacts root: `results/ai_company_task_harness`
 
 If the dashboard opens with zero runs, explain that no compatible run artifacts have been generated yet. Do not describe that as a dashboard failure.
@@ -158,13 +158,13 @@ If the dashboard opens with zero runs, explain that no compatible run artifacts 
 Stop the dashboard with:
 
 ```bash
-bash .claude/skills/research-task-orchestrator/scripts/stop_dashboard.sh
+bash agent_os_mvp/stop-dashboard.sh
 ```
 
 Run a minimal dashboard check with:
 
 ```bash
-bash .claude/skills/research-task-orchestrator/scripts/smoke_dashboard.sh
+bash agent_os_mvp/smoke-dashboard.sh
 ```
 
 ## Stop and replan conditions
@@ -366,9 +366,12 @@ Output contract for strict/custom subagent runs:
 
 ## Company Ubuntu Install Model
 
-For company rollout, publish the whole `.claude/skills/research-task-orchestrator` folder. Users should not need a separate dashboard zip.
+For company rollout, publish both skills:
 
-The first dashboard install may run `python3 -m venv`, `pip install -r requirements.txt`, and `npm install`. These commands are limited to the local `agent_os_mvp` dashboard directory.
+- `skills/install-multi-agent-runtime` for first-time Ubuntu setup.
+- `.claude/skills/research-task-orchestrator` for day-to-day task operation.
+
+The install skill may run `python3 -m venv`, `pip install -r requirements.txt`, and `npm install`. These commands are limited to the local `agent_os_mvp` dashboard directory.
 
 ## References
 

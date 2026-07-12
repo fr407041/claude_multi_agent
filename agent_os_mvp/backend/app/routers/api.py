@@ -11,6 +11,7 @@ from app.db import get_db
 from app.schemas import ChatRequest, ChatResponse, DashboardResponse, GoalCreate, GoalCreatedResponse, HookEventRequest
 from app.services.ai_company_monitor import collect_ai_company_monitor, get_ai_company_run_detail
 from app.services.agent_engine import create_goal, execute_task, plan_tasks
+from app.services.common_runs import collect_common_runs, get_common_run_detail
 from app.services.dashboard import collect_dashboard
 from app.services.claude_session import run_chat
 from app.services.session_store import append_event, ensure_session, session_dashboard
@@ -199,6 +200,37 @@ def run_goal_endpoint(goal_id: int):
 def dashboard():
     with get_db() as connection:
         return collect_dashboard(connection)
+
+
+@router.get("/runs")
+def common_runs():
+    with get_db() as connection:
+        return collect_common_runs(connection)
+
+
+@router.get("/runs/events")
+async def common_runs_events():
+    async def event_stream():
+        last_payload = ""
+        for _ in range(900):
+            with get_db() as connection:
+                payload = collect_common_runs(connection)
+            encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+            if encoded != last_payload:
+                yield _sse(payload, event="common_runs_updated")
+                last_payload = encoded
+            await asyncio.sleep(2)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/runs/{run_id}")
+def common_run_detail(run_id: str):
+    with get_db() as connection:
+        try:
+            return get_common_run_detail(run_id, connection)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found") from exc
 
 
 @router.get("/ai-company-monitor")

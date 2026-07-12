@@ -1,125 +1,171 @@
-# Multi-Agent Claude Code
+# Claude Multi Agent
 
-這個 repo 提供一套 bounded multi-agent workflow、runtime operation skill、mock/live verification，以及 dashboard。
+Common-case multi-agent runtime for Claude Code users.
 
-設計原則很簡單：
+The project is designed for Ubuntu 22.04 users who already have their own
+Claude Code / Router / LLM setup. This repository does not choose your model,
+provider, router profile, or output-token settings. Your existing Claude
+environment remains the source of truth.
 
-- 安裝 repo 是一件事。
-- 使用 agent 執行任務是另一件事。
-- 使用者自己的 Claude Code / Router / model / output token 設定是權威來源；本 repo common path 不覆蓋它。
+## Quick Start: Ubuntu 22.04
 
-## Quick Start
-
-### 1. 安裝 / 檢查
+Use the install skill first. It prepares this repository and the local dashboard.
 
 ```bash
-bash scripts/doctor.sh
-bash scripts/init-runtime.sh
+bash skills/install-multi-agent-runtime/scripts/install.sh
 ```
 
-第一次 clone 後先跑 mock verification：
+Start the dashboard:
+
+```bash
+bash agent_os_mvp/start-dashboard.sh
+```
+
+Open:
+
+```text
+http://127.0.0.1:15174/
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:18010/health
+```
+
+Stop:
+
+```bash
+bash agent_os_mvp/stop-dashboard.sh
+```
+
+## Two Skills, Two Jobs
+
+### 1. Install skill
+
+Path:
+
+```text
+skills/install-multi-agent-runtime/
+```
+
+Use this for first-time setup:
+
+- create `.env` when missing
+- create `agent-runs/`, `results/`, and `logs/`
+- install dashboard backend/frontend dependencies locally
+- run doctor and install verification
+- confirm the operation skill exists
+
+It must not modify global Claude Code, Claude Code Router, model, provider,
+token, shell, npm, or Python configuration.
+
+### 2. Operation skill
+
+Path:
+
+```text
+.claude/skills/research-task-orchestrator/
+```
+
+Use this after installation:
+
+```text
+Use the research-task-orchestrator skill to run: <your task>
+```
+
+It handles bounded task planning, agent meeting, worker dispatch, artifact
+verification, watchdog checks, and dashboard reporting. It assumes installation
+has already been completed.
+
+## Dashboard Behavior
+
+The dashboard is a common task observer. It is not specific to websites, PTT,
+stocks, or any one validation case.
+
+Completed runs show:
+
+- `Review outputs` as the primary action
+- `Generated outputs` with real files/folders, type, size, modified time, and
+  safe inline previews
+- verification evidence and limitations
+- meeting discussion and task plan when recorded
+
+The dashboard uses manual refresh by default so users can inspect a result
+without the page flickering between stale and live states.
+
+Default local ports:
+
+```env
+DASHBOARD_BACKEND_PORT=18010
+DASHBOARD_FRONTEND_PORT=15174
+```
+
+If ports conflict:
+
+```bash
+AGENT_OS_BACKEND_PORT=28010 \
+AGENT_OS_FRONTEND_PORT=25174 \
+AGENT_OS_PUBLIC_API_BASE_URL=http://127.0.0.1:28010 \
+bash agent_os_mvp/start-dashboard.sh
+```
+
+## Verification
+
+Common install verification:
 
 ```bash
 python3 scripts/verify_install.py --strict --json
 python3 scripts/run_ai_company_task_harness.py docs/ai_specs/ai-company-release-readiness-strict-demo.json --mode mock
 ```
 
-Mock verification 不需要 Docker、Claude Code、Router、Ollama 或模型。
-
-### 2. 使用 operation skill
-
-安裝完成後，用 runtime operation skill 執行任務：
-
-```text
-Use the research-task-orchestrator skill to run: <your task>
-```
-
-Operation skill 位於：
-
-```text
-.claude/skills/research-task-orchestrator/
-```
-
-它用於 backend/runtime agent 任務，不是 repo 安裝工具。
-
-## Skill 分層
-
-- `skills/install-multi-agent-runtime/`
-  - 安裝、doctor、初始化 folder、mock verification 引導。
-  - 不修改 Claude/Router/model/provider/output-token 設定。
-- `.claude/skills/research-task-orchestrator/`
-  - 日常任務與 backend agent 使用的 operation skill。
-  - 不負責 repo 安裝或 global Claude 設定。
-
-詳細說明見 [docs/SKILL_SEPARATION.zh-TW.md](docs/SKILL_SEPARATION.zh-TW.md)。
-
-## Configuration
-
-Common config 只管理本專案自己的路徑與 dashboard port：
+Dashboard verification:
 
 ```bash
-cp .env.example .env
+bash agent_os_mvp/smoke-dashboard.sh
 ```
 
-```env
-RUNS_DIR=./agent-runs
-RESULTS_DIR=./results
-LOGS_DIR=./logs
-DASHBOARD_BACKEND_PORT=8010
-DASHBOARD_FRONTEND_PORT=5174
-SKILLS_DIR=./skills
-TASK_TIMEOUT_SECONDS=1800
-```
-
-本 repo 不在 common path 中設定 Claude model、provider、Router profile 或 output token。那些由使用者自己的 Claude/Router 環境決定。
-
-## Live 驗證
-
-複雜 live 任務先跑 micro gates，不直接跑完整大任務：
+Backend unit tests:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File scripts/run-agent-micro-gates.ps1 -SkipGateF
+cd agent_os_mvp/backend
+python3 -m unittest discover -s tests -v
 ```
 
-Micro-gate task 有 artifact contract 時，`/run-task` final status 必須反映 deterministic verifier 結果。
-非 micro-gate 的一般任務，仍以 process result 與 artifacts 一起判讀。
-Micro-gate false success 是 hard fail：`[]`、missing artifact、wrong artifact root 都不得被標記為 pass。
-Gate D 會使用 Gate C 已 live 驗證的 5 個 PTT Stock URLs 作為 seed；這不是 mock data，也不是 caller-provided crawler，而是 micro-gates 之間的 bounded live handoff。
-
-## Dashboard
+Frontend build:
 
 ```bash
-bash .claude/skills/research-task-orchestrator/scripts/install_dashboard.sh
-bash .claude/skills/research-task-orchestrator/scripts/start_dashboard.sh
+cd agent_os_mvp/frontend
+npm run build
 ```
 
-預設：
+## Advanced: Docker Compose
+
+Docker Compose is only for maintainers, CI, or isolated reproduction. It is not
+the common user install path.
+
+```bash
+cd agent_os_mvp
+docker compose up -d --build
+```
+
+Open:
 
 ```text
-Backend health: http://127.0.0.1:8010/health
-Frontend:       http://127.0.0.1:5174
+http://127.0.0.1:15174/
 ```
-
-更多： [docs/DASHBOARD.zh-TW.md](docs/DASHBOARD.zh-TW.md)
-
-## Docs
-
-- [快速開始](docs/GETTING_STARTED.zh-TW.md)
-- [Skill 分層](docs/SKILL_SEPARATION.zh-TW.md)
-- [設定](docs/CONFIGURATION.zh-TW.md)
-- [Dashboard](docs/DASHBOARD.zh-TW.md)
-- [進階 Claude/Router](docs/ADVANCED_CLAUDE_ROUTER.zh-TW.md)
 
 ## Repository Contents
 
+- `skills/install-multi-agent-runtime/`: install and doctor skill
 - `.claude/skills/research-task-orchestrator/`: runtime operation skill
-- `skills/install-multi-agent-runtime/`: install/doctor skill
-- `scripts/verify_install.py`: checkout validation
-- `scripts/run_ai_company_task_harness.py`: mock/live harness entrypoint
-- `scripts/run-agent-micro-gates.ps1`: live micro-gate runner
-- `scripts/verify-agent-micro-gate.ps1`: deterministic gate verifier
-- `agent_os_mvp/`: dashboard package
+- `agent_os_mvp/`: dashboard backend/frontend package
+- `scripts/verify_install.py`: repository verification
+- `scripts/run_ai_company_task_harness.py`: mock/live task harness
+- `scripts/run-agent-micro-gates.ps1`: precise live micro-gate runner
+- `scripts/verify_agent_micro_gate.py`: deterministic micro-gate verifier
 
 ## Safety
 
-Do not commit API keys, passwords, Docker images, model weights, result caches, `.venv`, `node_modules`, SQLite runtime DBs, or logs.
+Do not commit API keys, passwords, Docker images, model weights, runtime logs,
+SQLite databases, `.venv`, `node_modules`, or generated result caches.

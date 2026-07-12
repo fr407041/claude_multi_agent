@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${ROOT_DIR}/backend"
 FRONTEND_DIR="${ROOT_DIR}/frontend"
-BACKEND_PORT="${AGENT_OS_BACKEND_PORT:-8010}"
-FRONTEND_PORT="${AGENT_OS_FRONTEND_PORT:-5174}"
+BACKEND_PORT="${AGENT_OS_BACKEND_PORT:-${DASHBOARD_BACKEND_PORT:-18010}}"
+FRONTEND_PORT="${AGENT_OS_FRONTEND_PORT:-${DASHBOARD_FRONTEND_PORT:-15174}}"
 BACKEND_URL="http://127.0.0.1:${BACKEND_PORT}"
 FRONTEND_URL="http://127.0.0.1:${FRONTEND_PORT}"
 REQUIRE_BROWSER_SMOKE="${AGENT_OS_REQUIRE_BROWSER_SMOKE:-0}"
@@ -85,15 +85,15 @@ browser_runtime_ok() {
   fi
   local dom
   dom="$($browser --headless --no-sandbox --disable-gpu --dump-dom "$FRONTEND_URL" 2>/dev/null)" || fail "browser could not render ${FRONTEND_URL}"
-  [[ "$dom" == *"AI COMPANY"* || "$dom" == *"AI Company"* ]] || fail "browser rendered an empty/incomplete React root"
-  [[ "$dom" == *"Run Verdict"* || "$dom" == *"No runs yet"* ]] || fail "browser DOM is missing dashboard verdict/empty state"
+  [[ "$dom" == *"Agent Tasks"* || "$dom" == *"AI Company"* ]] || fail "browser rendered an empty/incomplete React root"
+  [[ "$dom" == *"Generated outputs"* || "$dom" == *"No task runs found"* || "$dom" == *"Review outputs"* ]] || fail "browser DOM is missing common task output/empty state"
 }
 
 require_cmd python3
 require_cmd curl
 
-test -x "${BACKEND_DIR}/.venv/bin/python" || fail "missing backend venv. Run: bash .claude/skills/research-task-orchestrator/scripts/install_dashboard.sh"
-test -d "${FRONTEND_DIR}/node_modules" || fail "missing frontend node_modules. Run: bash .claude/skills/research-task-orchestrator/scripts/install_dashboard.sh"
+test -x "${BACKEND_DIR}/.venv/bin/python" || fail "missing backend venv. Run: bash skills/install-multi-agent-runtime/scripts/install.sh"
+test -d "${FRONTEND_DIR}/node_modules" || fail "missing frontend node_modules. Run: bash skills/install-multi-agent-runtime/scripts/install.sh"
 
 if port_open "$BACKEND_PORT"; then
   actual_root="$(health_app_root || true)"
@@ -115,6 +115,7 @@ actual_result_root="$(health_result_root || true)"
 test -n "$actual_result_root" || fail "backend health did not report result_root"
 
 curl -fsS "${BACKEND_URL}/api/ai-company-monitor" >/dev/null || fail "backend monitor API unavailable: ${BACKEND_URL}/api/ai-company-monitor"
+curl -fsS "${BACKEND_URL}/api/runs" >/dev/null || fail "backend common runs API unavailable: ${BACKEND_URL}/api/runs"
 frontend_title_ok || fail "frontend title check failed at ${FRONTEND_URL}; this may be a stale Vite service from another checkout"
 browser_runtime_ok
 
