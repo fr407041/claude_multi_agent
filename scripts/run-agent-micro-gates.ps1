@@ -73,6 +73,76 @@ function Wait-Run($RunId, $GateDir) {
   throw "run polling timed out: $RunId"
 }
 
+function Get-LocalRunDir($Status, $RunId) {
+  foreach ($candidate in @($Status.run_dir, $Status.runDir, $Status.result.run_dir)) {
+    if ($candidate) {
+      $text = [string]$candidate
+      if ($text.StartsWith('/runs/')) {
+        return Join-Path $Root ("agent-test-runs/" + $text.Substring('/runs/'.Length))
+      }
+      return $text
+    }
+  }
+  return Join-Path $Root "agent-test-runs/$RunId"
+}
+
+function Test-RuntimeOverride {
+  $markerDir = Join-Path $RunSetDir 'runtime-marker'
+  New-Item -ItemType Directory -Force -Path $markerDir | Out-Null
+  $payload = [ordered]@{
+    task = 'Runtime override marker check. Print the mounted repository runtime marker and do not run a real task.'
+    timeout_seconds = 120
+  }
+  $requestPath = Join-Path $markerDir 'request.json'
+  Save-Json $requestPath $payload
+  $initial = Invoke-JsonPost "$ApiBase/run-task" $requestPath
+  $initial.raw | Set-Content -Encoding utf8 (Join-Path $markerDir 'initial-response.json')
+  $runId = $initial.parsed.run_id
+  $final = Wait-Run $runId $markerDir
+  Save-Json (Join-Path $markerDir 'final-status.json') $final
+  $localRunDir = Get-LocalRunDir $final $runId
+  $stdoutPath = Join-Path $localRunDir 'stdout.log'
+  $markerPath = Join-Path $localRunDir 'runtime_override_id.txt'
+  $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' }
+  $marker = if (Test-Path $markerPath) { (Get-Content $markerPath -Raw).Trim() } else { '' }
+  [ordered]@{
+    run_id = $runId
+    status = $final.status
+    return_code = $final.return_code
+    run_dir = $localRunDir
+    stdout_path = $stdoutPath
+    marker_path = $markerPath
+    marker = $marker
+    pass = ($stdout -match 'RUNTIME_OVERRIDE_MARKER:claude-multi-agent-repo-runtime-v2' -and $marker -eq 'claude-multi-agent-repo-runtime-v2')
+  }
+}
+
+function Invoke-GateVerifier($Gate, $RunDir) {
+  $runtimeVerifier = Get-ChildItem -Path $RunDir -Filter "micro-gate-$Gate-verifier-attempt-*.json" -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending |
+    Select-Object -First 1
+  if ($runtimeVerifier) {
+    $raw = Get-Content $runtimeVerifier.FullName -Raw
+    $parsed = $null
+    try { $parsed = $raw | ConvertFrom-Json } catch {}
+    return [ordered]@{
+      raw = $raw
+      exit_code = if ($parsed -and $parsed.pass) { 0 } else { 1 }
+      path = $runtimeVerifier.FullName
+      source = 'runtime'
+    }
+  }
+
+  $ps = (Get-Process -Id $PID).Path
+  $rawOutput = & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'verify-agent-micro-gate.ps1') -Gate $Gate -RunDir $RunDir 2>&1
+  return [ordered]@{
+    raw = ($rawOutput | Out-String)
+    exit_code = $LASTEXITCODE
+    path = ''
+    source = 'host'
+  }
+}
+
 function Get-Task($Gate) {
   switch ($Gate) {
     'A' {
@@ -161,6 +231,12 @@ try {
     throw "health failed: $healthRaw"
   }
 
+  $runtimeMarker = Test-RuntimeOverride
+  Save-Json (Join-Path $RunSetDir 'runtime-marker-result.json') $runtimeMarker
+  if (-not $runtimeMarker.pass) {
+    throw "runtime override marker check failed; container is not executing mounted repo runtime. run=$($runtimeMarker.run_id) stdout=$($runtimeMarker.stdout_path)"
+  }
+
   $gates = @('A','B','C','D','E')
   if (-not $SkipGateF) { $gates += 'F' }
 
@@ -183,9 +259,10 @@ try {
     $final = Wait-Run $runId $gateDir
     Save-Json (Join-Path $gateDir 'final-status.json') $final
 
-    $localRunDir = Join-Path $Root "agent-test-runs/$runId"
-    $verifierRaw = powershell -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'verify-agent-micro-gate.ps1') -Gate $gate -RunDir $localRunDir 2>&1
-    $verifierExit = $LASTEXITCODE
+    $localRunDir = Get-LocalRunDir $final $runId
+    $verifierResult = Invoke-GateVerifier $gate $localRunDir
+    $verifierRaw = $verifierResult.raw
+    $verifierExit = $verifierResult.exit_code
     $verifierRaw | Set-Content -Encoding utf8 (Join-Path $gateDir 'verifier-result.json')
     $verifier = $null
     try { $verifier = ($verifierRaw | Out-String | ConvertFrom-Json) } catch {}
@@ -198,7 +275,11 @@ try {
       run_dir = $localRunDir
       verifier_exit_code = $verifierExit
       verifier_pass = ($verifierExit -eq 0)
+      false_success_blocked = ($final.status -eq 'succeeded' -and $verifierExit -ne 0)
+      failure_category = if ($final.status -eq 'succeeded' -and $verifierExit -ne 0) { 'FALSE_SUCCESS_BLOCKED' } elseif ($verifierExit -ne 0) { 'ARTIFACT_CONTRACT_FAILED' } else { '' }
       verifier_result_path = (Join-Path $gateDir 'verifier-result.json')
+      verifier_source = $verifierResult.source
+      runtime_verifier_path = $verifierResult.path
     }
     $summary.gates += $gateResult
     Save-Json (Join-Path $RunSetDir 'run-summary.json') $summary

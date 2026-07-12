@@ -27,11 +27,31 @@ class AgentMicroGateVerifierTests(unittest.TestCase):
         self.assertFalse(report["pass"])
         self.assertIn("expected exactly 5 unique URLs", report["fail_reasons"])
 
+    def test_gate_c_empty_urls_under_worktree_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            artifact_dir = run_dir / "worktree" / "ptt-stock-live"
+            artifact_dir.mkdir(parents=True)
+            (artifact_dir / "urls.json").write_text("[]", encoding="utf-8")
+            report = verify_gate("C", run_dir)
+        self.assertFalse(report["pass"])
+        self.assertEqual(report["details"]["artifact_dir"], str(artifact_dir))
+
     def test_gate_c_five_valid_unique_urls_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             artifact_dir = run_dir / "ptt-stock-live"
             artifact_dir.mkdir()
+            urls = [f"https://www.ptt.cc/bbs/Stock/M.{index}.A.html" for index in range(5)]
+            (artifact_dir / "urls.json").write_text(json.dumps({"urls": urls}), encoding="utf-8")
+            report = verify_gate("C", run_dir)
+        self.assertTrue(report["pass"], report["fail_reasons"])
+
+    def test_gate_c_five_valid_unique_urls_under_worktree_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            artifact_dir = run_dir / "worktree" / "ptt-stock-live"
+            artifact_dir.mkdir(parents=True)
             urls = [f"https://www.ptt.cc/bbs/Stock/M.{index}.A.html" for index in range(5)]
             (artifact_dir / "urls.json").write_text(json.dumps({"urls": urls}), encoding="utf-8")
             report = verify_gate("C", run_dir)

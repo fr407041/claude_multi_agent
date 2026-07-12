@@ -3,8 +3,12 @@ set -euo pipefail
 
 TASK_FILE="$1"
 RUN_DIR="$2"
+RUNTIME_OVERRIDE_ID="${RUNTIME_OVERRIDE_ID:-claude-multi-agent-repo-runtime-v2}"
 
 cd "${MULTI_AGENT_REPO}"
+mkdir -p "${RUN_DIR}"
+printf "%s\n" "$RUNTIME_OVERRIDE_ID" > "${RUN_DIR}/runtime_override_id.txt"
+echo "runtime_override_id=${RUNTIME_OVERRIDE_ID}"
 
 python3 scripts/verify_install.py
 if [[ "${RUN_REPO_SMOKE_ON_TASK:-true}" == "true" ]]; then
@@ -13,6 +17,11 @@ fi
 
 TASK_TEXT="$(cat "${TASK_FILE}")"
 export TASK_TEXT
+
+if [[ "$TASK_TEXT" == *"Runtime override marker check"* ]]; then
+  echo "RUNTIME_OVERRIDE_MARKER:${RUNTIME_OVERRIDE_ID}"
+  exit 0
+fi
 
 if [[ "${TASK_EXECUTOR:-router-direct}" == "claude-code" ]]; then
   mkdir -p "${RUN_DIR}/ptt-stock-live"

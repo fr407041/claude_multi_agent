@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_token_ledger import build_agent_token_ledger, token_usage_from_text
+from verify_agent_micro_gate import VALID_GATES, verify_gate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -645,6 +646,56 @@ def validate_domain_contract(
     }
 
 
+def validate_micro_gate_contract(run_dir: Path, gate: str) -> dict[str, Any]:
+    report = verify_gate(gate, run_dir)
+    defects = [
+        {
+            "kind": "micro_gate",
+            "artifact": "ptt-stock-live",
+            "path": reason,
+            "status": "failed",
+            "reason": reason,
+        }
+        for reason in report.get("fail_reasons", [])
+    ]
+    checks = [
+        {
+            "kind": "micro_gate",
+            "artifact": "ptt-stock-live",
+            "path": f"gate-{gate}",
+            "status": "passed" if report.get("pass") else "failed",
+            "verifier_report": report,
+        }
+    ]
+    return {
+        "enabled": True,
+        "status": "pass" if report.get("pass") else "fail",
+        "score": 1.0 if report.get("pass") else 0.0,
+        "checks": checks,
+        "defects": defects,
+        "validator_source": "micro_gate_verifier",
+        "micro_gate_report": report,
+    }
+
+
+def merge_domain_verdicts(*verdicts: dict[str, Any]) -> dict[str, Any]:
+    enabled_verdicts = [item for item in verdicts if item and item.get("enabled")]
+    if not enabled_verdicts:
+        return {"enabled": False, "status": "not_configured", "score": None, "checks": [], "defects": [], "validator_source": "runner_owned"}
+    checks = [check for item in enabled_verdicts for check in item.get("checks", [])]
+    defects = [defect for item in enabled_verdicts for defect in item.get("defects", [])]
+    passed_count = sum(1 for item in checks if item.get("status") == "passed")
+    return {
+        "enabled": True,
+        "status": "pass" if not defects else "fail",
+        "score": (passed_count / len(checks)) if checks else None,
+        "checks": checks,
+        "defects": defects,
+        "validator_source": "+".join(sorted({str(item.get("validator_source", "runner_owned")) for item in enabled_verdicts})),
+        "micro_gate_report": next((item.get("micro_gate_report") for item in enabled_verdicts if item.get("micro_gate_report")), None),
+    }
+
+
 def value_type_name(value: Any) -> str:
     if value is None:
         return "null"
@@ -984,6 +1035,7 @@ def main() -> int:
     parser.add_argument("--stage-artifact-limit", type=int, default=int(os.environ.get("LOCAL_ACTION_STAGE_ARTIFACT_LIMIT", "2")))
     parser.add_argument("--max-stages", type=int, default=int(os.environ.get("LOCAL_ACTION_MAX_STAGES", "4")))
     parser.add_argument("--derived-artifact", action="append", default=[])
+    parser.add_argument("--micro-gate", choices=sorted(VALID_GATES), default="", help="Run the shared micro-gate artifact verifier before accepting success.")
     args = parser.parse_args()
 
     started_at = now_iso()
@@ -1093,8 +1145,12 @@ def main() -> int:
                         args.invariant,
                         args.schema_file,
                     )
+                    if args.micro_gate:
+                        micro_gate_verdict = validate_micro_gate_contract(run_dir, args.micro_gate)
+                        write_json(run_dir / "ai_company" / f"micro_gate_{args.micro_gate}_verifier.json", micro_gate_verdict.get("micro_gate_report", {}))
+                        domain_verdict = merge_domain_verdicts(domain_verdict, micro_gate_verdict)
                     if domain_verdict["enabled"] and domain_verdict["status"] != "pass":
-                        failure_category = "domain_verdict_failed"
+                        failure_category = "ARTIFACT_CONTRACT_FAILED" if args.micro_gate else "domain_verdict_failed"
                         raise ActionExecutionError(
                             "runner-owned domain verdict failed: " + json.dumps(domain_verdict["defects"], ensure_ascii=False),
                             action_log,
@@ -1143,6 +1199,13 @@ def main() -> int:
             break
 
     missing_expected_artifacts = validate_expected_artifacts(run_dir, args.expected_artifact)
+    if args.micro_gate and not error and not missing_expected_artifacts:
+        micro_gate_verdict = validate_micro_gate_contract(run_dir, args.micro_gate)
+        write_json(run_dir / "ai_company" / f"micro_gate_{args.micro_gate}_verifier.json", micro_gate_verdict.get("micro_gate_report", {}))
+        domain_verdict = merge_domain_verdicts(domain_verdict, micro_gate_verdict)
+        if domain_verdict["status"] != "pass":
+            error = "runner-owned micro-gate verifier failed: " + json.dumps(domain_verdict["defects"], ensure_ascii=False)
+            failure_category = "ARTIFACT_CONTRACT_FAILED"
     if not error and not missing_expected_artifacts and len(stages) > 0:
         generated_files = sorted(set([*generated_files, *args.expected_artifact]))
         status = "SUCCESS"

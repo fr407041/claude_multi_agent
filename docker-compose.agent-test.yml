@@ -8,6 +8,8 @@ services:
       MODEL_NAME: devstral-small-2:24b
       START_CONTAINER_OLLAMA: "false"
       TASK_EXECUTOR: claude-code
+      REQUIRE_REPO_RUNTIME_OVERRIDE: "true"
+      RUNTIME_OVERRIDE_ID: claude-multi-agent-repo-runtime-v2
       RUN_REPO_SMOKE_ON_TASK: "false"
       MULTI_AGENT_REPO: /workspace/multi_agent_claude_code
       RUNS_DIR: /runs

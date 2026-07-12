@@ -412,6 +412,96 @@ class LocalModelActionExecutorTests(unittest.TestCase):
         artifact = json.loads((Path(report["run_dir"]) / "ai_company" / "artifact_verify_report.json").read_text())
         self.assertFalse(artifact["parsed"]["semantic_expectations_passed"])
 
+    def test_micro_gate_c_empty_urls_blocks_executor_success(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        manifest = root / "manifest.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "actions": [
+                        {"type": "write_file", "path": "ptt-stock-live/urls.json", "content": "[]\n"},
+                        {"type": "finish", "summary": "urls written", "artifacts": ["ptt-stock-live/urls.json"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--task",
+                "Micro gate C: parse 5 PTT Stock article URLs only.",
+                "--manifest-file",
+                str(manifest),
+                "--expected-artifact",
+                "ptt-stock-live/urls.json",
+                "--micro-gate",
+                "C",
+                "--out-root",
+                str(root / "runs"),
+                "--run-id",
+                "run-micro-gate-c-empty",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["overall_status"], "fail")
+        self.assertEqual(report["kpis"]["failure_category"], "ARTIFACT_CONTRACT_FAILED")
+        self.assertEqual(report["kpis"]["domain_verdict_status"], "fail")
+        verifier = json.loads((Path(report["run_dir"]) / "ai_company" / "micro_gate_C_verifier.json").read_text())
+        self.assertFalse(verifier["pass"])
+
+    def test_micro_gate_c_valid_urls_allows_executor_success(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        urls = [f"https://www.ptt.cc/bbs/Stock/M.{index}.A.html" for index in range(5)]
+        manifest = root / "manifest.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "actions": [
+                        {"type": "write_file", "path": "ptt-stock-live/urls.json", "content": json.dumps({"urls": urls})},
+                        {"type": "finish", "summary": "urls written", "artifacts": ["ptt-stock-live/urls.json"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--task",
+                "Micro gate C: parse 5 PTT Stock article URLs only.",
+                "--manifest-file",
+                str(manifest),
+                "--expected-artifact",
+                "ptt-stock-live/urls.json",
+                "--micro-gate",
+                "C",
+                "--out-root",
+                str(root / "runs"),
+                "--run-id",
+                "run-micro-gate-c-pass",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["overall_status"], "pass")
+        self.assertEqual(report["kpis"]["domain_verdict_status"], "pass")
+
     def test_iterative_repair_after_semantic_expectation_failure(self) -> None:
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)

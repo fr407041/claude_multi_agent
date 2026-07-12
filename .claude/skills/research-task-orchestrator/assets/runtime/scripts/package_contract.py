@@ -26,6 +26,7 @@ RUNTIME_REQUIRED_PATHS = [
     "scripts/package_contract.py",
     "scripts/validate_ai_company_spec.py",
     "scripts/verify_install.py",
+    "scripts/verify_agent_micro_gate.py",
     "scripts/run_ai_company_task_harness.py",
     "scripts/materialize_ai_company_task_run.py",
     "scripts/run_ai_company_meeting.py",
