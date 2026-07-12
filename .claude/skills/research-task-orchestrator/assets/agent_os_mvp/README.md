@@ -70,6 +70,11 @@ AGENT_OS_PUBLIC_API_BASE_URL=http://127.0.0.1:28010 \
 bash agent_os_mvp/start-dashboard.sh
 ```
 
+The frontend reads `/runtime-config.json` at startup. The local start script and
+the Docker image both generate it from the selected backend API URL, so changing
+ports does not require editing frontend source code or rebuilding with a hard
+coded Vite value.
+
 ## Smoke check
 
 ```bash

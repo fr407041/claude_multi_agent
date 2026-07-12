@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8010";
+const BUILD_API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" && window.location?.hostname
+    ? `${window.location.protocol}//${window.location.hostname}:18010`
+    : "http://127.0.0.1:18010";
 const BOARD_STATES = ["running", "waiting", "done", "failed", "idle"];
 
 const emptyMonitor = {
@@ -42,7 +46,6 @@ const emptyCommonRuns = {
 function normalizeStatus(value) {
   return String(value || "unknown").toLowerCase().replace(/\s+/g, "-");
 }
-
 function StatusPill({ value }) {
   return <span className={`status-pill status-${normalizeStatus(value)}`}>{value || "unknown"}</span>;
 }
@@ -85,6 +88,20 @@ function stateTitle(state) {
 
 function fallbackText(value) {
   return value || "No explicit fallback plan recorded.";
+}
+
+async function loadRuntimeConfig() {
+  try {
+    const response = await fetch("/runtime-config.json", { cache: "no-store" });
+    if (!response.ok) return {};
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+function resolveApiBase(config) {
+  return String(config?.apiBaseUrl || config?.api_base_url || BUILD_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
 }
 
 function renderCount(value) {
@@ -654,6 +671,10 @@ function CommonRunPicker({ runs, selectedRunId, onSelect, disabled }) {
 }
 
 function CommonRecentRuns({ runs, selectedRunId, onSelect }) {
+  const shortRunId = (runId) => {
+    if (!runId) return "unknown run";
+    return runId.length > 42 ? `${runId.slice(0, 28)}...${runId.slice(-8)}` : runId;
+  };
   return (
     <section className="surface recent-runs-compact">
       <SectionHeader title="Recent runs" meta="Common task view" />
@@ -662,7 +683,7 @@ function CommonRecentRuns({ runs, selectedRunId, onSelect }) {
           <button key={item.run_id} type="button" className={`run-row ${item.run_id === selectedRunId ? "run-row-active" : ""}`} onClick={() => onSelect(item.run_id)}>
             <div>
               <strong>{item.headline || item.run_id}</strong>
-              <p>{item.run_type || "agent_task"} · {item.run_id}</p>
+              <p>{item.run_type || "agent_task"} · {shortRunId(item.run_id)}</p>
             </div>
             <div className="run-row-meta">
               <StatusPill value={item.user_status} />
@@ -717,6 +738,22 @@ function NextActionCard({ action }) {
     <section className="surface next-action-card" id="next-action">
       <SectionHeader title="Next action" status={action?.label || "View progress"} />
       <p>{action?.detail || "Select a run to inspect its next step."}</p>
+    </section>
+  );
+}
+
+function BackendConnectionIssue({ apiBase, error, hasSnapshot }) {
+  return (
+    <section className="empty-state surface connection-issue">
+      <SectionHeader title="Dashboard cannot reach backend" meta={hasSnapshot ? "Showing the last successful snapshot below." : "No trusted run data loaded yet."} />
+      <p>
+        The dashboard UI loaded, but it could not fetch task runs from the backend. Check that the backend is running and that the API base URL is correct.
+      </p>
+      <div className="command-examples">
+        <code>API base: {apiBase || "not configured"}</code>
+        <code>Health check: {(apiBase || DEFAULT_API_BASE)}/health</code>
+      </div>
+      {error ? <p className="inline-warning">{error}</p> : null}
     </section>
   );
 }
@@ -844,6 +881,8 @@ function CommonTaskDashboard({ run, runs, selectedRunId, onSelect, connectionSta
 }
 
 export default function App() {
+  const [apiBase, setApiBase] = useState(DEFAULT_API_BASE);
+  const [runtimeConfigLoaded, setRuntimeConfigLoaded] = useState(false);
   const [monitor, setMonitor] = useState(emptyMonitor);
   const [commonRuns, setCommonRuns] = useState(emptyCommonRuns);
   const [selectedCommonRunId, setSelectedCommonRunId] = useState("");
@@ -857,6 +896,8 @@ export default function App() {
   const [runDetailLoading, setRunDetailLoading] = useState(false);
   const [monitorError, setMonitorError] = useState("");
   const [commonError, setCommonError] = useState("");
+  const [commonLoadedOnce, setCommonLoadedOnce] = useState(false);
+  const [commonLoadAttempted, setCommonLoadAttempted] = useState(false);
   const [runDetailError, setRunDetailError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
   const [activeTab, setActiveTab] = useState("agents");
@@ -866,7 +907,7 @@ export default function App() {
   const [chatEvents, setChatEvents] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState("");
-  const [uiConfig, setUiConfig] = useState({ show_progress_bar: true, show_agent_logs: true, show_artifacts: true, show_chat: true });
+  const [uiConfig, setUiConfig] = useState({ show_progress_bar: true, show_agent_logs: true, show_artifacts: true, show_chat: false });
   const [liveEvent, setLiveEvent] = useState(null);
   const [liveConnectionState, setLiveConnectionState] = useState("idle");
   const [commonConnectionState, setCommonConnectionState] = useState("idle");
@@ -883,7 +924,7 @@ export default function App() {
 
   async function loadSession(sessionId) {
     if (!sessionId) return;
-    const response = await fetch(`${API_BASE}/api/v1/dashboard/${sessionId}`);
+    const response = await fetch(`${apiBase}/api/v1/dashboard/${sessionId}`);
     if (!response.ok) throw new Error(`Session load failed: ${response.status}`);
     const data = await response.json();
     setChatMessages(data.messages || []);
@@ -896,7 +937,7 @@ export default function App() {
     setChatLoading(true);
     setChatError("");
     try {
-      const response = await fetch(`${API_BASE}/api/v1/chat`, {
+      const response = await fetch(`${apiBase}/api/v1/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: chatPrompt.trim(), session_id: chatSessionId || null }),
@@ -915,7 +956,7 @@ export default function App() {
 
   async function loadMonitor() {
     try {
-      const response = await fetch(`${API_BASE}/api/ai-company-monitor`);
+      const response = await fetch(`${apiBase}/api/ai-company-monitor`);
       if (!response.ok) throw new Error(`Monitor load failed: ${response.status}`);
       const data = await response.json();
       setMonitor(data);
@@ -955,8 +996,9 @@ export default function App() {
   }
 
   async function loadCommonRuns(source = "poll") {
+    setCommonLoadAttempted(true);
     try {
-      const response = await fetch(`${API_BASE}/api/runs`);
+      const response = await fetch(`${apiBase}/api/runs`);
       if (!response.ok) throw new Error(`Common runs load failed: ${response.status}`);
       const data = await response.json();
       applyCommonRunsSnapshot(data, source);
@@ -965,6 +1007,7 @@ export default function App() {
       if (detailId) {
         await loadCommonRunDetail(detailId);
       }
+      setCommonLoadedOnce(true);
       setCommonError("");
     } catch (err) {
       setCommonError(`${err.message || "Failed to load common runs"}; keeping the last successful snapshot if available.`);
@@ -979,7 +1022,7 @@ export default function App() {
     setRunDetailError("");
     setSelectedRun(null);
     try {
-      const response = await fetch(`${API_BASE}/api/ai-company-monitor/runs/${runId}`);
+      const response = await fetch(`${apiBase}/api/ai-company-monitor/runs/${runId}`);
       if (!response.ok) throw new Error(`Run detail load failed: ${response.status}`);
       const data = await response.json();
       setSelectedRun(data);
@@ -994,7 +1037,7 @@ export default function App() {
     if (!runId) return;
     setCommonDetailLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/runs/${encodeURIComponent(runId)}`);
+      const response = await fetch(`${apiBase}/api/runs/${encodeURIComponent(runId)}`);
       if (!response.ok) throw new Error(`Common run detail load failed: ${response.status}`);
       const data = await response.json();
       setSelectedCommonRun(data);
@@ -1007,9 +1050,17 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadCommonRuns("initial");
-    fetch(`${API_BASE}/api/v1/dashboard/config`).then((response) => response.ok ? response.json() : null).then((data) => data && setUiConfig(data)).catch(() => {});
+    loadRuntimeConfig().then((config) => {
+      setApiBase(resolveApiBase(config));
+      setRuntimeConfigLoaded(true);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!runtimeConfigLoaded) return;
+    loadCommonRuns("initial");
+    fetch(`${apiBase}/api/v1/dashboard/config`).then((response) => response.ok ? response.json() : null).then((data) => data && setUiConfig(data)).catch(() => {});
+  }, [runtimeConfigLoaded, apiBase]);
 
   useEffect(() => {
     setCommonConnectionState("manual");
@@ -1032,7 +1083,7 @@ export default function App() {
     }
 
     let fallbackTimer = null;
-    const source = new EventSource(`${API_BASE}/api/ai-company-monitor/runs/${selectedRunId}/events`);
+    const source = new EventSource(`${apiBase}/api/ai-company-monitor/runs/${selectedRunId}/events`);
     const handleEvent = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -1056,7 +1107,7 @@ export default function App() {
       source.close();
       if (fallbackTimer) window.clearInterval(fallbackTimer);
     };
-  }, [selectedRunId]);
+  }, [selectedRunId, apiBase]);
 
   const hasExplicitSelection = Boolean(selectedRunId);
   const run = hasExplicitSelection ? selectedRun : monitor.latest_run;
@@ -1083,7 +1134,11 @@ export default function App() {
   const unknownRuns = allRunsSummary.unknown_runs || [];
   const commonRun = selectedCommonRun || commonRuns.latest_run;
   const commonRunList = commonRuns.recent_runs || [];
-  const noCommonRuns = !commonLoading && commonRunList.length === 0;
+  const backendConnectionIssue = Boolean(commonLoadAttempted && commonError && !commonLoadedOnce);
+  const usingLastSnapshot = Boolean(commonError && commonLoadedOnce);
+  const noCommonRuns = !commonLoading && !backendConnectionIssue && !usingLastSnapshot && commonRunList.length === 0;
+  const commonRunPickerDisabled = commonRunList.length === 0;
+  const showCommonDashboard = Boolean(commonRun && !backendConnectionIssue);
 
   const allRunsMetrics = useMemo(
     () => [
@@ -1167,9 +1222,9 @@ export default function App() {
         </div>
 
         <div className="topbar-actions">
-          <CommonRunPicker runs={commonRunList} selectedRunId={selectedCommonRunId} onSelect={selectCommonRun} disabled={noCommonRuns} />
+          <CommonRunPicker runs={commonRunList} selectedRunId={selectedCommonRunId} onSelect={selectCommonRun} disabled={commonRunPickerDisabled} />
 
-          <button type="button" className="refresh-button" onClick={resumeLatestRun} disabled={noCommonRuns || followLatestRun}>
+          <button type="button" className="refresh-button" onClick={resumeLatestRun} disabled={commonRunPickerDisabled || followLatestRun}>
             {followLatestRun ? "Latest selected" : "Select latest"}
           </button>
 
@@ -1180,7 +1235,7 @@ export default function App() {
         </div>
       </header>
 
-      {commonError ? <p className="warning-banner">{commonError}</p> : null}
+      {usingLastSnapshot ? <p className="warning-banner">{commonError}</p> : null}
       {(commonRuns.warnings || []).length ? <p className="warning-banner">{commonRuns.warnings[0]}</p> : null}
       {runDetailError ? <p className="error-banner">{runDetailError}</p> : null}
 
@@ -1215,6 +1270,8 @@ export default function App() {
         </div>
       </details> : null}
 
+      {backendConnectionIssue ? <BackendConnectionIssue apiBase={apiBase} error={commonError} hasSnapshot={false} /> : null}
+
       {noCommonRuns ? (
         <section className="empty-state surface">
           <SectionHeader title="No task runs found" meta="Run an agent task or validation flow to populate this dashboard." />
@@ -1225,7 +1282,7 @@ export default function App() {
         </section>
       ) : null}
 
-      {!noCommonRuns ? (
+      {showCommonDashboard ? (
         <CommonTaskDashboard
           run={commonRun}
           runs={commonRunList}

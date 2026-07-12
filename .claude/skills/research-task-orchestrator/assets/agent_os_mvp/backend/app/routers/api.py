@@ -127,7 +127,7 @@ def dashboard_config():
         "show_progress_bar": enabled("AGENT_OS_SHOW_PROGRESS_BAR"),
         "show_agent_logs": enabled("AGENT_OS_SHOW_AGENT_LOGS"),
         "show_artifacts": enabled("AGENT_OS_SHOW_ARTIFACTS"),
-        "show_chat": enabled("AGENT_OS_SHOW_CHAT"),
+        "show_chat": enabled("AGENT_OS_SHOW_CHAT", default=False),
         "event_policy": "explicit_messages_tools_status_artifacts_only",
     }
 

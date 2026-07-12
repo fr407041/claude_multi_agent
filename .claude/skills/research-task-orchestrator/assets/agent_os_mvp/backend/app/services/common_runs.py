@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlite3 import Connection
 from typing import Any
 
-from app.services.ai_company_monitor import collect_ai_company_monitor, get_ai_company_run_detail, get_project_root, get_results_root
+from app.services.ai_company_monitor import get_ai_company_run_detail, get_project_root, get_results_root
 
 
 USER_STATUSES = {"Working", "Completed", "Needs attention", "Failed"}
@@ -201,13 +201,13 @@ def _micro_gate_expected_artifact_info(gate: dict[str, Any]) -> dict[str, Any] |
     return info
 
 
-def _build_micro_gate_details(summary: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_micro_gate_details(summary: dict[str, Any], include_paths: bool = True) -> list[dict[str, Any]]:
     details: list[dict[str, Any]] = []
     for gate in summary.get("gates") or []:
         gate_name = str(gate.get("gate") or "").upper()
-        actual = _micro_gate_expected_artifact_info(gate)
-        run_directory = _path_info(gate.get("run_dir"), "run directory")
-        verifier_result = _path_info(gate.get("verifier_result_path"), "verifier result")
+        actual = _micro_gate_expected_artifact_info(gate) if include_paths else None
+        run_directory = _path_info(gate.get("run_dir"), "run directory") if include_paths else None
+        verifier_result = _path_info(gate.get("verifier_result_path"), "verifier result") if include_paths else None
         details.append(
             {
                 "name": f"Gate {gate_name}" if gate_name else "Gate",
@@ -266,7 +266,7 @@ def _micro_gate_progress(summary: dict[str, Any], details: list[dict[str, Any]])
     }
 
 
-def _common_micro_gate_run(summary_path: Path) -> dict[str, Any]:
+def _common_micro_gate_run(summary_path: Path, include_artifacts: bool = True) -> dict[str, Any]:
     summary, error = _load_json(summary_path)
     run_id = summary_path.parent.name
     if summary is None:
@@ -287,15 +287,17 @@ def _common_micro_gate_run(summary_path: Path) -> dict[str, Any]:
             "technical_details": {"warnings": [error], "source_path": str(summary_path)},
         }
 
-    details = _build_micro_gate_details(summary)
+    details = _build_micro_gate_details(summary, include_paths=include_artifacts)
     user_status = _user_status_from_micro_summary(summary)
     failed_gate = summary.get("failed_gate")
     headline = "Validation completed and verified." if user_status == "Completed" else f"Validation failed at Gate {failed_gate}." if failed_gate else "Validation is still running."
     progress = _micro_gate_progress(summary, details)
-    artifacts = [_path_info(summary_path, "run summary"), _path_info(summary.get("run_set_dir"), "validation run set")]
-    for gate in details:
-        artifacts.extend(gate["technical_paths"])
-    artifacts = [item for item in artifacts if item]
+    artifacts = []
+    if include_artifacts:
+        artifacts = [_path_info(summary_path, "run summary"), _path_info(summary.get("run_set_dir"), "validation run set")]
+        for gate in details:
+            artifacts.extend(gate["technical_paths"])
+        artifacts = [item for item in artifacts if item]
     verification_checks = [
         {
             "label": f"{gate['name']}: {gate['capability']}",
@@ -438,12 +440,12 @@ def _build_ai_output_package(run: dict[str, Any], artifact_checks: dict[str, Any
     return artifacts, output_paths
 
 
-def _common_ai_company_run(run: dict[str, Any]) -> dict[str, Any]:
+def _common_ai_company_run(run: dict[str, Any], include_artifacts: bool = True) -> dict[str, Any]:
     user_status = _ai_status_to_user_status(run.get("overall_status"))
     final_result = run.get("final_result") or {}
     summary = final_result.get("summary_excerpt") or final_result.get("summary_markdown") or run.get("decision_summary") or ""
     artifact_checks = final_result.get("artifact_checks") or {}
-    artifacts, output_paths = _build_ai_output_package(run, artifact_checks)
+    artifacts, output_paths = _build_ai_output_package(run, artifact_checks) if include_artifacts else ([], [])
     checks = _artifact_checks_to_list(artifact_checks)
     agents = []
     board = run.get("agent_state_board") or {}
@@ -575,7 +577,7 @@ def _direct_ai_company_run(run_dir: Path) -> dict[str, Any] | None:
     }
 
 
-def _collect_direct_ai_company_runs() -> list[dict[str, Any]]:
+def _collect_direct_ai_company_runs(include_artifacts: bool = True) -> list[dict[str, Any]]:
     root = get_results_root()
     if not root.exists():
         return []
@@ -583,7 +585,7 @@ def _collect_direct_ai_company_runs() -> list[dict[str, Any]]:
     for run_dir in sorted(root.glob("run-*"), key=lambda path: path.stat().st_mtime, reverse=True)[:40]:
         item = _direct_ai_company_run(run_dir)
         if item:
-            runs.append(_common_ai_company_run(item))
+            runs.append(_common_ai_company_run(item, include_artifacts=include_artifacts))
     return runs
 
 
@@ -765,9 +767,9 @@ def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
     if root.exists():
         summary_paths = sorted(root.glob("micro-gates-*/run-summary.json"), key=lambda path: path.stat().st_mtime, reverse=True)
         for summary_path in summary_paths[:20]:
-            runs.append(_common_micro_gate_run(summary_path))
+            runs.append(_common_micro_gate_run(summary_path, include_artifacts=False))
     seen = {str(item.get("run_id")) for item in runs}
-    for item in _collect_direct_ai_company_runs():
+    for item in _collect_direct_ai_company_runs(include_artifacts=False):
         if str(item.get("run_id")) not in seen:
             runs.append(item)
             seen.add(str(item.get("run_id")))
@@ -778,13 +780,6 @@ def collect_common_runs(connection: Connection | None = None) -> dict[str, Any]:
                 runs.append(_common_agent_task_run(connection, goal_row))
         except Exception as exc:  # pragma: no cover - defensive adapter isolation
             warnings.append(f"Could not load agent task runs: {exc}")
-    if connection is not None:
-        try:
-            monitor = collect_ai_company_monitor(connection)
-            for item in monitor.get("recent_runs", [])[:10]:
-                runs.append(_common_ai_company_run(item))
-        except Exception as exc:  # pragma: no cover - defensive adapter isolation
-            warnings.append(f"Could not load ai-company runs: {exc}")
     runs.sort(key=_sort_key, reverse=True)
     compact_runs = [_compact_run(item) for item in runs[:20]]
     latest_run = compact_runs[0] if compact_runs else None

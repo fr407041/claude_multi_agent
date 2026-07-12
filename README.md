@@ -94,6 +94,12 @@ Completed runs show:
 The dashboard uses manual refresh by default so users can inspect a result
 without the page flickering between stale and live states.
 
+The frontend reads `/runtime-config.json` at startup to find the backend API.
+`agent_os_mvp/start-dashboard.sh` and the Docker image both generate this file
+from the selected backend port. If the backend cannot be reached, the dashboard
+now shows `Dashboard cannot reach backend` with the exact API base and health
+check URL instead of pretending there are no runs.
+
 Watched artifact roots:
 
 - `AI_COMPANY_RESULTS_ROOT` defaults to `./results/ai_company_task_harness`

@@ -330,7 +330,7 @@
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/App.jsx",
-      "sha256": "91cf68ce47dcfef1c8e2554ee344865bf8ccf094eb183f59be2be08c1b35dc19"
+      "sha256": "7cd3a4373869e147f6bc4ef384971e29e3600aa213cb8f2f1bcd0bbabe8c72d9"
     },
     {
       "path": "assets/agent_os_mvp/frontend/src/styles.css",
@@ -338,7 +338,7 @@
     },
     {
       "path": "assets/agent_os_mvp/start-dashboard.sh",
-      "sha256": "efe198bbdf528145dc79e750ae91f173388d98028fa60dec783c2bb554717ec3"
+      "sha256": "b87ccb3b35cf66bb349140466b4e88e8bf9651c84b63c74f72dbb96106c50b5c"
     },
     {
       "path": "assets/agent_os_mvp/stop-dashboard.sh",
