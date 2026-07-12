@@ -119,6 +119,196 @@ select {
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.06);
 }
 
+.user-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 28px;
+  border-radius: 20px;
+}
+
+.user-hero h2 {
+  margin: 0 0 10px;
+  font-size: clamp(28px, 4vw, 52px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.user-hero p {
+  margin: 0;
+  max-width: 860px;
+  color: #515154;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.user-run-id {
+  margin-top: 14px !important;
+  color: #86868b !important;
+  font-size: 13px !important;
+  overflow-wrap: anywhere;
+}
+
+.user-status-completed {
+  border-color: rgba(39, 126, 73, 0.25);
+  background: linear-gradient(135deg, rgba(238, 255, 244, 0.95), rgba(255, 255, 255, 0.88));
+}
+
+.user-status-needs-attention {
+  border-color: rgba(191, 111, 0, 0.26);
+  background: linear-gradient(135deg, rgba(255, 248, 230, 0.96), rgba(255, 255, 255, 0.88));
+}
+
+.user-status-failed {
+  border-color: rgba(190, 48, 48, 0.25);
+  background: linear-gradient(135deg, rgba(255, 240, 240, 0.96), rgba(255, 255, 255, 0.88));
+}
+
+.user-status-working {
+  border-color: rgba(0, 113, 227, 0.22);
+  background: linear-gradient(135deg, rgba(235, 245, 255, 0.96), rgba(255, 255, 255, 0.88));
+}
+
+.primary-action {
+  min-height: 48px;
+  border: none;
+  border-radius: 999px;
+  padding: 0 22px;
+  color: white;
+  background: #0071e3;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.user-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.78fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.user-dashboard-grid .surface,
+.recent-runs-compact,
+.technical-details-shell {
+  padding: 18px;
+}
+
+.user-result-panel {
+  grid-column: 1 / 2;
+}
+
+.user-trust-panel {
+  grid-column: 2 / 3;
+}
+
+.progress-bar {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8e8ed;
+  margin-bottom: 12px;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0071e3, #64d2ff);
+  transition: width 240ms ease;
+}
+
+.progress-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.progress-steps span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #6e6e73;
+  background: #f5f5f7;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.progress-steps .progress-step-done {
+  color: #0f5132;
+  background: #e9f8ef;
+}
+
+.agent-status-list,
+.trust-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-status-chip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #f5f5f7;
+}
+
+.agent-status-chip p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.result-finding-list {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: #3a3a3c;
+  line-height: 1.55;
+}
+
+.trust-summary-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f5f5f7;
+}
+
+.trust-summary-ok strong {
+  color: #277e49;
+}
+
+.trust-summary-missing strong {
+  color: #b54708;
+}
+
+.recent-runs-compact {
+  margin-bottom: 16px;
+}
+
+.technical-details-shell {
+  margin-top: 16px;
+}
+
+.technical-details-shell > summary {
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.technical-details-intro {
+  margin-top: 10px;
+  margin-bottom: 16px;
+}
+
 .error-banner,
 .inline-warning {
   border-radius: 10px;
@@ -998,8 +1188,14 @@ select {
   .summary-grid,
   .health-grid,
   .work-grid,
+  .user-dashboard-grid,
   .operator-overview {
     grid-template-columns: 1fr;
+  }
+
+  .user-result-panel,
+  .user-trust-panel {
+    grid-column: auto;
   }
 
   .board-grid,
@@ -1027,6 +1223,19 @@ select {
 @media (max-width: 680px) {
   .dashboard-shell {
     padding: 16px;
+  }
+
+  .user-hero {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .primary-action {
+    width: 100%;
+  }
+
+  .progress-steps {
+    grid-template-columns: 1fr;
   }
 
   .topbar h1 {
