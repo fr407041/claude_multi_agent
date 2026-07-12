@@ -16,7 +16,7 @@
     },
     {
       "path": "scripts/verify_agent_micro_gate.py",
-      "sha256": "1978d762bbc513e3bf45f4cf0a8b490468424f9ed692f05165623cb74cda6414"
+      "sha256": "2064a13417be4aef29e29f93a688fd31cda57f5e1e7b907f779ba613686702cc"
     },
     {
       "path": "scripts/run_ai_company_task_harness.py",

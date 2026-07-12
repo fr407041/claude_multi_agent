@@ -11,7 +11,7 @@ from typing import Any
 
 
 VALID_GATES = {"A", "B", "C", "D", "E", "F"}
-PTT_STOCK_RE = re.compile(r"^https://www\.ptt\.cc/bbs/Stock/.+\.html$")
+PTT_STOCK_RE = re.compile(r"^https://www\.ptt\.cc/bbs/Stock/M\.\d+\.A\.[A-Za-z0-9]+\.html$")
 VALID_STANCES = {"bullish", "bearish", "mixed", "neutral", "insufficient_evidence"}
 VALID_CONFIDENCE = {"low", "medium", "high"}
 

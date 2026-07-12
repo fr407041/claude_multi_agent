@@ -84,6 +84,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run-agent-micro-gates.ps1 -Skip
 Micro-gate task 有 artifact contract 時，`/run-task` final status 必須反映 deterministic verifier 結果。
 非 micro-gate 的一般任務，仍以 process result 與 artifacts 一起判讀。
 Micro-gate false success 是 hard fail：`[]`、missing artifact、wrong artifact root 都不得被標記為 pass。
+Gate D 會使用 Gate C 已 live 驗證的 5 個 PTT Stock URLs 作為 seed；這不是 mock data，也不是 caller-provided crawler，而是 micro-gates 之間的 bounded live handoff。
 
 ## Dashboard
 

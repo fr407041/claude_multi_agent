@@ -462,7 +462,7 @@ class LocalModelActionExecutorTests(unittest.TestCase):
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         root = Path(temp_dir.name)
-        urls = [f"https://www.ptt.cc/bbs/Stock/M.{index}.A.html" for index in range(5)]
+        urls = [f"https://www.ptt.cc/bbs/Stock/M.{1234567890 + index}.A.{index}F0.html" for index in range(5)]
         manifest = root / "manifest.json"
         manifest.write_text(
             json.dumps(

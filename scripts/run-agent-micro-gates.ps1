@@ -143,7 +143,42 @@ function Invoke-GateVerifier($Gate, $RunDir) {
   }
 }
 
-function Get-Task($Gate) {
+function Get-ArtifactDir($RunDir) {
+  $rootArtifactDir = Join-Path $RunDir 'ptt-stock-live'
+  if (Test-Path $rootArtifactDir) { return $rootArtifactDir }
+  $worktreeArtifactDir = Join-Path $RunDir 'worktree/ptt-stock-live'
+  if (Test-Path $worktreeArtifactDir) { return $worktreeArtifactDir }
+  return $rootArtifactDir
+}
+
+function Get-GateCUrls($RunDir) {
+  $artifactDir = Get-ArtifactDir $RunDir
+  $urlsPath = Join-Path $artifactDir 'urls.json'
+  if (-not (Test-Path $urlsPath)) {
+    throw "Gate C urls.json not found: $urlsPath"
+  }
+  $raw = Get-Content $urlsPath -Raw
+  $parsed = $raw | ConvertFrom-Json
+  $items = @()
+  if ($parsed -is [array]) {
+    $items = @($parsed)
+  } elseif ($parsed.urls) {
+    $items = @($parsed.urls)
+  }
+  $urls = @(
+    $items |
+      ForEach-Object { [string]$_ } |
+      Where-Object { $_ -match '^https://www\.ptt\.cc/bbs/Stock/.+\.html$' } |
+      Where-Object { $_ -match '^https://www\.ptt\.cc/bbs/Stock/M\.\d+\.A\.[A-Za-z0-9]+\.html$' } |
+      Select-Object -Unique
+  )
+  if ($urls.Count -ne 5) {
+    throw "Gate C did not provide exactly 5 verified PTT Stock URLs. count=$($urls.Count) path=$urlsPath"
+  }
+  return $urls
+}
+
+function Get-Task($Gate, $Context) {
   switch ($Gate) {
     'A' {
       return @'
@@ -172,21 +207,35 @@ Micro gate C: parse 5 PTT Stock article URLs only.
 
 Use live tools inside this container. Do not use mock data and do not use caller-provided crawler code.
 Fetch PTT Stock list pages yourself from https://www.ptt.cc/bbs/Stock/index.html.
-Parse exactly 5 unique article URLs matching https://www.ptt.cc/bbs/Stock/...html.
+Parse exactly 5 unique article URLs matching https://www.ptt.cc/bbs/Stock/M.<digits>.A.<id>.html.
+Do not include board index pages such as index.html or index10197.html.
 Save them to ./ptt-stock-live/urls.json as either ["url1", ...] or {"urls": ["url1", ...]}.
 Then print exactly the contents of ./ptt-stock-live/urls.json and nothing else.
 '@
     }
     'D' {
-      return @'
+      $seedUrls = @($Context.gate_c_urls)
+      if ($seedUrls.Count -ne 5) {
+        throw 'Gate D requires 5 verified Gate C seed URLs.'
+      }
+      $seedJson = ($seedUrls | ConvertTo-Json -Compress)
+      return @"
 Micro gate D: parse one PTT Stock article body only.
 
 Use live tools inside this container. Do not use mock data.
-Fetch PTT Stock yourself, choose the newest valid article, fetch its article page, and parse title, url, author, date, and body.
-Use article title and body only; ignore push comments.
-Save ./ptt-stock-live/article.json with fields title, url, author, date, body.
+This is a file artifact task, not a Q&A task. Do not answer with stock advice, a summary, or an explanation.
+Gate C already produced these 5 verified live PTT Stock article URLs:
+$seedJson
+
+Do not crawl the board again for this gate.
+Create and run your own short Python script inside the run directory.
+The script must try the seed URLs in order, fetch one article page, save raw HTML to ./ptt-stock-live/raw.html, parse title, url, author, date, and body, then write ./ptt-stock-live/article.json.
+Use article title and body only; ignore push comments and signatures after the main content when possible.
+Save ./ptt-stock-live/article.json with exactly these fields: title, url, author, date, body.
+The url field must be one of the seed URLs above, and body must contain the article body text.
+Before finishing, verify that ./ptt-stock-live/article.json exists and is non-empty.
 Then print exactly the contents of ./ptt-stock-live/article.json and nothing else.
-'@
+"@
     }
     'E' {
       return @'
@@ -223,12 +272,25 @@ $summary = [ordered]@{
   gates = @()
   pass = $false
 }
+$gateContext = [ordered]@{
+  gate_c_urls = @()
+}
 
 try {
-  $healthRaw = curl.exe -sS --max-time 15 "$ApiBase/health" 2>&1
-  $healthRaw | Set-Content -Encoding utf8 (Join-Path $RunSetDir 'health.json')
-  if ($LASTEXITCODE -ne 0 -or $healthRaw -notmatch '"healthy"\s*:\s*true') {
-    throw "health failed: $healthRaw"
+  $healthRaw = ''
+  $healthOk = $false
+  for ($healthAttempt = 1; $healthAttempt -le 12; $healthAttempt++) {
+    $healthRaw = curl.exe -sS --max-time 15 "$ApiBase/health" 2>&1
+    $healthRaw | Set-Content -Encoding utf8 (Join-Path $RunSetDir 'health.json')
+    if ($LASTEXITCODE -eq 0 -and $healthRaw -match '"healthy"\s*:\s*true') {
+      $healthOk = $true
+      break
+    }
+    Write-Host "health attempt=$healthAttempt not ready: $healthRaw"
+    Start-Sleep -Seconds 5
+  }
+  if (-not $healthOk) {
+    throw "health failed after retries: $healthRaw"
   }
 
   $runtimeMarker = Test-RuntimeOverride
@@ -246,7 +308,7 @@ try {
     Write-Host "=== Gate $gate ==="
 
     $payload = [ordered]@{
-      task = Get-Task $gate
+      task = Get-Task $gate $gateContext
       timeout_seconds = $TimeoutSeconds
     }
     $requestPath = Join-Path $gateDir 'request.json'
@@ -280,6 +342,10 @@ try {
       verifier_result_path = (Join-Path $gateDir 'verifier-result.json')
       verifier_source = $verifierResult.source
       runtime_verifier_path = $verifierResult.path
+      user_hint = if ($gate -eq 'D' -and $verifierExit -ne 0) { 'Gate D must create ptt-stock-live/article.json from one of the Gate C seed URLs. Check claude-attempt logs and artifact snapshots in the run directory.' } else { '' }
+    }
+    if ($gate -eq 'D') {
+      $gateResult.seed_urls = $gateContext.gate_c_urls
     }
     $summary.gates += $gateResult
     Save-Json (Join-Path $RunSetDir 'run-summary.json') $summary
@@ -291,6 +357,13 @@ try {
       Save-Json (Join-Path $RunSetDir 'run-summary.json') $summary
       Write-Host "Gate $gate FAILED. Stopping subsequent gates."
       exit 1
+    }
+
+    if ($gate -eq 'C') {
+      $gateContext.gate_c_urls = @(Get-GateCUrls $localRunDir)
+      $gateContext.gate_c_urls | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 (Join-Path $RunSetDir 'gate-c-verified-urls.json')
+      $summary.gate_c_verified_urls = $gateContext.gate_c_urls
+      Save-Json (Join-Path $RunSetDir 'run-summary.json') $summary
     }
   }
 

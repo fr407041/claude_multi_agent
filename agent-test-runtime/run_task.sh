@@ -65,6 +65,38 @@ PY
       --json | tee "${RUN_DIR}/micro-gate-${gate}-verifier-attempt-${attempt}.json"
   }
 
+  snapshot_artifacts() {
+    local gate="$1"
+    local attempt="$2"
+    local phase="$3"
+    export RUN_DIR gate attempt phase
+    python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+run_dir = Path(os.environ["RUN_DIR"])
+artifact_dir = run_dir / "ptt-stock-live"
+files = []
+if artifact_dir.exists():
+    for path in sorted(artifact_dir.rglob("*")):
+        if path.is_file():
+            files.append({
+                "path": str(path.relative_to(run_dir)),
+                "bytes": path.stat().st_size,
+            })
+payload = {
+    "gate": os.environ["gate"],
+    "attempt": os.environ["attempt"],
+    "phase": os.environ["phase"],
+    "artifact_dir": str(artifact_dir),
+    "files": files,
+}
+out = run_dir / f"micro-gate-{os.environ['gate']}-artifact-snapshot-attempt-{os.environ['attempt']}-{os.environ['phase']}.json"
+out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+PY
+  }
+
   GATE="$(detect_micro_gate)"
   BASE_PROMPT="You are running inside the dedicated test container. Complete the user task using live tools as needed.
 Run directory: ${RUN_DIR}
@@ -73,20 +105,39 @@ Do not use mock data. Do not rely on any crawler prewritten by the caller. If co
 Write all task artifacts under ${RUN_DIR}/ptt-stock-live/.
 ${TASK_TEXT}"
 
+  snapshot_artifacts "${GATE:-none}" "1" "before"
   run_claude_attempt "1" "$BASE_PROMPT"
-  if [[ -n "$GATE" ]]; then
+  snapshot_artifacts "${GATE:-none}" "1" "after"
+    if [[ -n "$GATE" ]]; then
     if run_gate_verifier "$GATE" "1"; then
       exit 0
     fi
     REPAIR_FEEDBACK="$(cat "${RUN_DIR}/micro-gate-${GATE}-verifier-attempt-1.json")"
+    ARTIFACT_SNAPSHOT="$(cat "${RUN_DIR}/micro-gate-${GATE}-artifact-snapshot-attempt-1-after.json" 2>/dev/null || true)"
+    EXTRA_REPAIR_INSTRUCTIONS=""
+    if [[ "$GATE" == "D" && ! -s "${RUN_DIR}/ptt-stock-live/article.json" ]]; then
+      EXTRA_REPAIR_INSTRUCTIONS="
+NO_ARTIFACT_CREATED: ${RUN_DIR}/ptt-stock-live/article.json is missing or empty.
+Expected exact JSON schema:
+{\"title\":\"...\",\"url\":\"https://www.ptt.cc/bbs/Stock/M.<digits>.A.<id>.html\",\"author\":\"...\",\"date\":\"...\",\"body\":\"article body text at least 100 chars\"}
+If seed URLs are listed in the original task, use one of those URLs.
+If raw HTML already exists in the artifact snapshot below, parse that existing raw HTML first instead of answering with analysis.
+If no raw HTML exists, create your own short parse_article.py in ${RUN_DIR}, run it, and make it write ${RUN_DIR}/ptt-stock-live/article.json.
+Do not discuss the failure; create ${RUN_DIR}/ptt-stock-live/article.json and verify the file exists before final output."
+    fi
     REPAIR_PROMPT="${BASE_PROMPT}
 
 The deterministic verifier failed. Repair only Micro gate ${GATE}; do not rerun or discuss earlier gates.
 Verifier JSON:
 ${REPAIR_FEEDBACK}
+Artifact snapshot after the failed attempt:
+${ARTIFACT_SNAPSHOT}
+${EXTRA_REPAIR_INSTRUCTIONS}
 
 You have one repair attempt. Create or correct the required artifact files under ${RUN_DIR}/ptt-stock-live/ and print only the gate-required final output."
+    snapshot_artifacts "$GATE" "2" "before"
     run_claude_attempt "2" "$REPAIR_PROMPT"
+    snapshot_artifacts "$GATE" "2" "after"
     if run_gate_verifier "$GATE" "2"; then
       exit 0
     fi
@@ -102,12 +153,21 @@ try:
     verifier = json.loads(path.read_text(encoding="utf-8"))
 except Exception as exc:
     verifier = {"pass": False, "fail_reasons": [f"verifier result unreadable: {exc}"]}
+failure_category = "ARTIFACT_CONTRACT_FAILED"
+if gate == "D":
+    article_path = path.parent / "ptt-stock-live" / "article.json"
+    if not article_path.exists() or article_path.stat().st_size == 0:
+        failure_category = "ARTIFACT_NOT_ATTEMPTED"
 payload = {
     "status": "failed",
-    "failure_category": "ARTIFACT_CONTRACT_FAILED",
+    "failure_category": failure_category,
     "gate": gate,
     "failed_checks": verifier.get("fail_reasons", []),
     "verifier_result_path": str(path),
+    "artifact_snapshot_paths": [
+        str(item)
+        for item in sorted(path.parent.glob(f"micro-gate-{gate}-artifact-snapshot-attempt-*.json"))
+    ],
     "repair_attempts": 1,
 }
 print("MICRO_GATE_CONTRACT_FAILURE:")
