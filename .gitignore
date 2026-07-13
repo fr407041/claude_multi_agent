@@ -24,6 +24,20 @@ __pycache__/
 *.db
 *.sqlite
 
+# Keep fresh clone/zip runtime mount points present, but ignore their contents.
+!results/
+results/*
+!results/.gitkeep
+!agent-test-runs/
+agent-test-runs/*
+!agent-test-runs/.gitkeep
+!agent_os_mvp/backend/data/
+agent_os_mvp/backend/data/*
+!agent_os_mvp/backend/data/.gitkeep
+!agent_os_mvp/sessions/
+agent_os_mvp/sessions/*
+!agent_os_mvp/sessions/.gitkeep
+
 # Local environment files
 .env
 .env.*

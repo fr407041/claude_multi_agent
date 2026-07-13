@@ -1,5 +1,9 @@
-backend/data/
+backend/data/*
+!backend/data/.gitkeep
 backend/.venv/
 frontend/node_modules/
+frontend/dist/
+sessions/*
+!sessions/.gitkeep
 __pycache__/
 *.pyc

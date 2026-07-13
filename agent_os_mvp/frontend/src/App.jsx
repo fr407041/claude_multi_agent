@@ -1235,6 +1235,8 @@ export default function App() {
     : "Run detail unavailable";
   const noRuns = !monitorLoading && (monitor.recent_runs || []).length === 0;
   const runVerdict = toRunVerdict(run, selectedRunSummary, finalResult, watchdog);
+  const legacyOperatorRunAvailable = Boolean(run || selectedRunSummary);
+  const technicalCommonStatus = commonRun?.user_status || commonRun?.verification?.status || "No common run selected";
   const trustGates = buildTrustGates(finalResult, watchdog, packagePreflight, providerDiagnostic);
   const nextAction = buildNextAction(runVerdict, finalResult, watchdog, packagePreflight, providerDiagnostic);
   const agentFlow = buildAgentFlow(run, finalResult, watchdog);
@@ -1350,8 +1352,37 @@ export default function App() {
 
       <details className="surface technical-details-shell">
         <summary>Technical details</summary>
-        <p className="muted technical-details-intro">Operator data is still available here: agents, evidence, execution, logs, raw verdicts, gates, watchdog and recovery signals.</p>
+        <p className="muted technical-details-intro">
+          Technical data is shown for the selected common run first. Legacy operator monitor details appear only when an operator run is selected.
+        </p>
 
+      {!legacyOperatorRunAvailable ? (
+        <section className={`operator-overview verdict-${normalizeStatus(technicalCommonStatus)}`}>
+          <article className="surface verdict-card">
+            <p className="eyebrow">Selected Run Status</p>
+            <div className="verdict-word">{technicalCommonStatus}</div>
+            <p className="verdict-run">{commonRun?.run_id || "No common run selected"}</p>
+            <div className="verdict-kpis">
+              <MetricTile label="Run Type" value={commonRun?.run_type || "n/a"} />
+              <MetricTile label="Verification" value={commonRun?.verification?.status || "n/a"} />
+              <MetricTile label="Artifacts" value={commonRun?.artifacts?.length ?? "n/a"} />
+            </div>
+          </article>
+
+          <article className="surface next-action-card">
+            <SectionHeader title="Next Action" status={technicalCommonStatus} />
+            <p>{commonRun?.next_action?.detail || commonRun?.next_action?.label || "Select or run a task to inspect technical details."}</p>
+          </article>
+
+          <article className="surface trust-gates-card">
+            <SectionHeader title="Legacy operator monitor" meta="No selected operator run" />
+            <p className="muted">
+              The selected item is a common dashboard run. Legacy operator verdicts, raw gates, watchdog and agent board data are unavailable for this run,
+              so the dashboard is not showing a misleading UNKNOWN verdict.
+            </p>
+          </article>
+        </section>
+      ) : (
       <section className={`operator-overview verdict-${normalizeStatus(runVerdict)}`}>
         <article className="surface verdict-card">
           <p className="eyebrow">Run Verdict</p>
@@ -1393,6 +1424,7 @@ export default function App() {
           </div>
         </article>
       </section>
+      )}
 
       {run?.goal_dag?.plan?.jobs?.length ? (
         <section className="surface details-section">

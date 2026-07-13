@@ -90,6 +90,20 @@ cd agent_os_mvp
 docker compose up -d --build
 ```
 
+Fresh zip and fresh clone checkouts include placeholder runtime directories for
+the dashboard bind mounts:
+
+- `backend/data/`
+- `sessions/`
+- `../results/`
+- `../agent-test-runs/`
+
+The placeholders keep first-run Docker Compose stable while `.gitignore` still
+prevents databases, sessions, logs, and generated run artifacts from being
+committed. If a host bind mount is malformed, the backend reports
+`DASHBOARD_DATA_PATH_INVALID` in `/health` and falls back to a temporary SQLite
+database instead of returning a generic `/api/runs` 500.
+
 ## Do not commit runtime outputs
 
 Do not commit:

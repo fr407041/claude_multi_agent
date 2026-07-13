@@ -4,9 +4,11 @@ import sqlite3
 from contextlib import contextmanager
 import os
 from pathlib import Path
+from typing import Any
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+_DB_PATH_WARNING: dict[str, Any] | None = None
 
 
 def get_db_path() -> Path:
@@ -14,6 +16,39 @@ def get_db_path() -> Path:
     if configured:
         return Path(configured).expanduser().resolve()
     return BASE_DIR / "data" / "agent_os.db"
+
+
+def get_db_path_warning() -> dict[str, Any] | None:
+    return _DB_PATH_WARNING
+
+
+def _fallback_db_path(original: Path, reason: str) -> Path:
+    global _DB_PATH_WARNING
+    fallback_root = Path(os.getenv("AGENT_OS_DB_FALLBACK_DIR", "/tmp/agent_os_mvp_data")).expanduser().resolve()
+    fallback_root.mkdir(parents=True, exist_ok=True)
+    fallback = fallback_root / original.name
+    _DB_PATH_WARNING = {
+        "code": "DASHBOARD_DATA_PATH_INVALID",
+        "configured_db_path": str(original),
+        "fallback_db_path": str(fallback),
+        "reason": reason,
+    }
+    return fallback
+
+
+def _ensure_db_parent(db_path: Path) -> Path:
+    global _DB_PATH_WARNING
+    parent = db_path.parent
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        return _fallback_db_path(db_path, f"Configured database parent exists but is not a directory: {parent}")
+    except OSError as exc:
+        return _fallback_db_path(db_path, f"Could not create configured database parent {parent}: {exc}")
+    if not parent.is_dir():
+        return _fallback_db_path(db_path, f"Configured database parent is not a directory: {parent}")
+    _DB_PATH_WARNING = None
+    return db_path
 
 
 SCHEMA_SQL = """
@@ -113,8 +148,7 @@ CREATE TABLE IF NOT EXISTS ai_company_runs (
 
 
 def _connect() -> sqlite3.Connection:
-    db_path = get_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _ensure_db_parent(get_db_path())
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection

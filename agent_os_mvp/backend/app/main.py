@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import init_db
+from app.db import get_db_path_warning, init_db
 from app.routers.api import router as api_router
 from app.services.ai_company_monitor import get_project_root, get_results_root
 from app.services.session_store import init_session_store
@@ -62,6 +62,7 @@ def checkout_marker():
     else:
         fab_root = project_root / "results" / "fab_agent_poc"
     result_root = get_results_root()
+    db_warning = get_db_path_warning()
     return {
         "status": "ok",
         "app": "agent_os_mvp",
@@ -82,4 +83,5 @@ def checkout_marker():
             "MICRO_GATES_RUNS_ROOT": micro_root.exists(),
             "FAB_AGENT_POC_RESULTS_ROOT": fab_root.exists(),
         },
+        "database_warning": db_warning,
     }

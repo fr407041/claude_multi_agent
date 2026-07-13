@@ -426,6 +426,14 @@ Open:
 http://127.0.0.1:15174/
 ```
 
+Fresh zip and fresh clone checkouts already include placeholder runtime
+directories for the dashboard bind mounts. These placeholders prevent first-run
+`/api/runs` 500 errors caused by missing host directories while keeping actual
+databases, sessions, logs, and generated artifacts ignored by Git. If the
+database bind path is malformed, `/health` reports
+`DASHBOARD_DATA_PATH_INVALID` and the backend falls back to a temporary SQLite
+database rather than crashing the dashboard.
+
 ## Repository Contents
 
 - `skills/install-multi-agent-runtime/`: install and doctor skill
