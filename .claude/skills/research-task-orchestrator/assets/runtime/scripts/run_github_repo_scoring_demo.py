@@ -39,7 +39,7 @@ def list_supplied_inputs(case_dir: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the GitHub repository scoring common demo.")
     parser.add_argument("--mode", choices=["mock", "live"], default="mock")
-    parser.add_argument("--repo", default="All-Hands-AI/OpenHands")
+    parser.add_argument("--repo", default="openhands/openhands")
     parser.add_argument("--ref", default="main")
     parser.add_argument("--source-dir", default="", help="Use a local source directory instead of downloading GitHub archive.")
     parser.add_argument("--out-root", default=str(DEFAULT_OUT_ROOT))

@@ -457,7 +457,7 @@ def repo_scoring_mock_content(rel_file: str, scope_path: Path | None = None) -> 
     total_files = int(metadata.get("total_files") or 4)
     context_files = context_manifest.get("files", []) if isinstance(context_manifest.get("files"), list) else []
     guard_actions = sorted({str(item.get("context_guard_action")) for item in context_files if isinstance(item, dict) and item.get("context_guard_action")}) or ["full_read", "chunked_context", "blocked"]
-    target_repo = str(metadata.get("target_repo") or "All-Hands-AI/OpenHands")
+    target_repo = str(metadata.get("target_repo") or "openhands/openhands")
     if rel_file == "repo-score/file-coverage.json":
         return json.dumps(
             {

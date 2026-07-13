@@ -40,7 +40,7 @@
     },
     {
       "path": "scripts/run_ai_company_execution.py",
-      "sha256": "49bda6037126ac1b376ceb2d8ab6f548c52e61d0615adbac21797d17a7805ee7"
+      "sha256": "49c958ce04ba2a357b6e4e1285ec7bc750f430011a9207135f55a5c6bcc7a56d"
     },
     {
       "path": "scripts/run_ai_company_reviewer_worker.py",
@@ -96,11 +96,11 @@
     },
     {
       "path": "scripts/run-github-repo-scoring-demo.sh",
-      "sha256": "bb965b34c72a9b95fd5a726bd3b9444fccddcc32dfc8eb202e0039fb684d3f59"
+      "sha256": "e6b5424a818799e2412e300b9d5be8410c673074ed333c9e5350eccc1c996c15"
     },
     {
       "path": "scripts/run_github_repo_scoring_demo.py",
-      "sha256": "b555d0be3705bcca9b0bed0a6306885590f29d6403a49cf31f7f02bbfc1d821b"
+      "sha256": "f78bf30ba57954297a1dbdd153247d89c540197c3c8bd2b7f4714a723eabd212"
     },
     {
       "path": "scripts/run-task-contract-smoke.sh",
@@ -112,7 +112,7 @@
     },
     {
       "path": "scripts/prepare_github_repo_scoring_case.py",
-      "sha256": "2462082859f137010777b367baf8681f30023506e5ec997e66972b3b36469d15"
+      "sha256": "6a32c2518d4face2a6f59159ed90fff6381c2045dc38f41b438227c0fba3badc"
     },
     {
       "path": "scripts/prepare_common_research_case.py",
@@ -192,7 +192,7 @@
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repo_metadata.json",
-      "sha256": "b672907b5c4e932d49da611d36f655b3484c343823ee1af2eb8f1e1eca59cd7a"
+      "sha256": "e220af7201b99d392ec648503190824f2fa8969daceb7b91c06069c921452414"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repository_inventory.json",

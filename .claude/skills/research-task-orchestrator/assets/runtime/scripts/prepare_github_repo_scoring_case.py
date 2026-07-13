@@ -15,7 +15,7 @@ from typing import Any
 from safe_file_context import safe_read_file
 
 
-DEFAULT_REPO = "All-Hands-AI/OpenHands"
+DEFAULT_REPO = "openhands/openhands"
 SKIP_DIRS = {".git", ".hg", ".svn", "node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
 TEXT_SUFFIXES = {
     ".cfg",

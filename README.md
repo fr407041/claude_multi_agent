@@ -221,11 +221,11 @@ bash scripts/run-github-repo-scoring-demo.sh mock
 bash scripts/run-github-repo-scoring-demo.sh live
 ```
 
-The default target is `All-Hands-AI/OpenHands`. Override it without editing the
+The default target is `openhands/openhands`. Override it without editing the
 repo:
 
 ```bash
-GITHUB_REPO_SCORING_TARGET=All-Hands-AI/OpenHands \
+GITHUB_REPO_SCORING_TARGET=openhands/openhands \
 GITHUB_REPO_SCORING_REF=main \
 bash scripts/run-github-repo-scoring-demo.sh live
 ```

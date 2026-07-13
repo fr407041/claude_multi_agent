@@ -1,7 +1,7 @@
 {
   "schema_version": "github-repo-scoring-input.v1",
-  "prepared_at_utc": "2026-07-13T12:01:05.271463+00:00",
-  "target_repo": "All-Hands-AI/OpenHands",
+  "prepared_at_utc": "2026-07-13T12:20:49.315315+00:00",
+  "target_repo": "openhands/openhands",
   "target_ref": "",
   "source": {
     "source_kind": "local_dir",
