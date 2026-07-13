@@ -332,23 +332,23 @@
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repo_metadata.json",
-      "sha256": "427cfe80322ebd6dc400e60f9cc744aaa6bd3981d80e3cda2d831fcfdb20063a"
+      "sha256": "0a701faf3a645249efb76cd5a5868d96cb2e81f51550552d81536c6be1e827d6"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repository_inventory.json",
-      "sha256": "cfaf3fe913d695885a6d057470627b4923831dc3c30720e9640dbbf08b19acae"
+      "sha256": "e71f3bf4c3d68b58d4380cd633af328617e629a9398572c3c0440ad2b8efbb3f"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/file_context_manifest.json",
-      "sha256": "decea35145be50e15ca9179625432a5d093c70c5a06130f4c744bb588f7f6c67"
+      "sha256": "f6380bf9ce348073efe5d3800a6d014a7f5c393d936a5987c3d36ed87274ad00"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/bounded_file_context.md",
-      "sha256": "c4360b07ad6f6b229115d42cfabd5951adcdadf4d139e06b9633c715ecd60fd1"
+      "sha256": "41580da644099f21aa7de077256714fcfae239a163029d9ddb8416695e1624b8"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/inventory_shards/shard-000.json",
-      "sha256": "cfaf3fe913d695885a6d057470627b4923831dc3c30720e9640dbbf08b19acae"
+      "sha256": "e71f3bf4c3d68b58d4380cd633af328617e629a9398572c3c0440ad2b8efbb3f"
     },
     {
       "path": "tests/fixtures/ai_company_release_readiness_demo/release_brief.md",
