@@ -4,7 +4,7 @@
   "runtime_files": [
     {
       "path": ".gitattributes",
-      "sha256": "9c01fcef44cefc205b1f1333d6bd18feaaaca7f926f7e73f7626998141013b71"
+      "sha256": "352504d48925fa832333bc8e3b919703d5ce1e8756e0f76dcadf4d13885f76ea"
     },
     {
       "path": "scripts/package_contract.py",
