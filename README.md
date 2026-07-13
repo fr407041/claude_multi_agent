@@ -15,6 +15,17 @@ Use the install skill first. It prepares this repository and the local dashboard
 bash skills/install-multi-agent-runtime/scripts/install.sh
 ```
 
+Recommended source checkout:
+
+```bash
+git -c core.autocrlf=false clone https://github.com/fr407041/claude_multi_agent.git
+```
+
+GitHub zip downloads also work. Strict package verification is byte-for-byte;
+if a corporate Git client or Windows checkout converts LF to CRLF,
+`verify_install.py --strict` reports `CRLF_LINE_ENDING_CONVERSION` with
+remediation instead of a vague hash error.
+
 Start the dashboard:
 
 ```bash
@@ -132,6 +143,12 @@ Common install verification:
 python3 scripts/verify_install.py --strict --json
 python3 scripts/run_ai_company_task_harness.py docs/ai_specs/ai-company-release-readiness-strict-demo.json --mode mock
 ```
+
+`/run-task` success is contract-aware. A wrapper, install check, or mock harness
+exit code is not enough: when a task asks for exact JSON or exact text, the
+runtime writes `task-contract.json` and only reports success if the model output
+satisfies that task contract. Contract failures use
+`TASK_OUTPUT_CONTRACT_FAILED`.
 
 Common live demo:
 
@@ -345,7 +362,9 @@ stress testing. It depends on an external website and on the model reliably
 creating crawler artifacts, so it is useful for hardening but no longer the
 common install/live demo acceptance path. Missing artifacts in those gates are
 reported as model artifact reliability failures, not as a dashboard install
-failure.
+failure. Files that exist but fail semantic checks, such as a too-short parsed
+article body, are classified as `ARTIFACT_CONTENT_TOO_SHORT` under
+`ARTIFACT_CONTRACT_FAILED`.
 
 ## Safety
 

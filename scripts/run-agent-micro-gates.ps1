@@ -101,7 +101,7 @@ function Get-NestedFailureCategory($Final, $RunDir, $Verifier) {
       $combined += "`n" + (Get-Content $path -Raw)
     }
   }
-  foreach ($category in @('ARTIFACT_NOT_CREATED_BY_MODEL', 'ARTIFACT_NOT_ATTEMPTED', 'ARTIFACT_CONTRACT_FAILED')) {
+  foreach ($category in @('ARTIFACT_NOT_CREATED_BY_MODEL', 'ARTIFACT_NOT_ATTEMPTED', 'ARTIFACT_CONTENT_TOO_SHORT', 'SEMANTIC_ARTIFACT_CONTRACT_FAILED', 'ARTIFACT_CONTRACT_FAILED')) {
     if ($combined -match $category) {
       return $category
     }

@@ -205,12 +205,30 @@ def verify_gate(gate: str, run_dir: Path) -> dict[str, Any]:
 
 
 def result(pass_value: bool, gate: str, run_dir: Path, reasons: list[str], details: dict[str, Any]) -> dict[str, Any]:
+    failure_category = ""
+    failure_parent_category = ""
+    if not pass_value:
+        missing_artifact_reasons = {
+            "proof.txt missing",
+            "index.html missing",
+            "ptt-stock-live artifact dir missing",
+        }
+        if any(item in missing_artifact_reasons or item.startswith(("urls.json parse/check failed: missing file", "article.json parse/check failed: missing file", "final.json parse/check failed: missing file")) for item in reasons):
+            failure_category = "ARTIFACT_NOT_CREATED_BY_MODEL"
+            failure_parent_category = "ARTIFACT_CONTRACT_FAILED"
+        elif gate == "D" and any("body missing or too short" in item for item in reasons):
+            failure_category = "ARTIFACT_CONTENT_TOO_SHORT"
+            failure_parent_category = "ARTIFACT_CONTRACT_FAILED"
+        else:
+            failure_category = "ARTIFACT_CONTRACT_FAILED"
     return {
         "pass": bool(pass_value),
         "gate": gate,
         "run_dir": str(run_dir),
         "checked_at_utc": datetime.now(timezone.utc).isoformat(),
         "fail_reasons": reasons,
+        "failure_category": failure_category,
+        "failure_parent_category": failure_parent_category,
         "details": details,
     }
 

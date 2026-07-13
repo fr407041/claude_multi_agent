@@ -23,7 +23,9 @@ CANONICAL_ROLES = [
 ]
 
 RUNTIME_REQUIRED_PATHS = [
+    ".gitattributes",
     "scripts/package_contract.py",
+    "scripts/task_contract.py",
     "scripts/validate_ai_company_spec.py",
     "scripts/verify_install.py",
     "scripts/verify_agent_micro_gate.py",
@@ -113,6 +115,30 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def crlf_diagnostic(path: Path, expected: str) -> dict[str, str | bool]:
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return {"line_ending_diagnostic": "unavailable", "detail": str(exc)}
+    if b"\0" in data or b"\r\n" not in data:
+        return {}
+    normalized = data.replace(b"\r\n", b"\n")
+    normalized_hash = _sha256_bytes(normalized)
+    if normalized_hash != expected:
+        return {}
+    return {
+        "line_ending_diagnostic": "CRLF_LINE_ENDING_CONVERSION",
+        "probable_cause": "CRLF_LINE_ENDING_CONVERSION",
+        "normalized_lf_matches": True,
+        "normalized_lf_sha256": normalized_hash,
+        "remediation": "Use the GitHub zip download or clone with: git -c core.autocrlf=false clone <repo-url>",
+    }
+
+
 def manifest_entries(root: Path, paths: Iterable[str]) -> list[dict[str, str]]:
     entries = []
     for rel in paths:
@@ -143,9 +169,9 @@ def load_manifest(root: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def verify_entries(root: Path, entries: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, str]]]:
+def verify_entries(root: Path, entries: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
     missing: list[str] = []
-    mismatches: list[dict[str, str]] = []
+    mismatches: list[dict[str, Any]] = []
     for entry in entries:
         rel = str(entry.get("path", ""))
         expected = str(entry.get("sha256", ""))
@@ -155,7 +181,9 @@ def verify_entries(root: Path, entries: list[dict[str, Any]]) -> tuple[list[str]
             continue
         actual = sha256_file(path)
         if not expected or actual != expected:
-            mismatches.append({"path": rel, "expected": expected, "actual": actual})
+            item: dict[str, Any] = {"path": rel, "expected": expected, "actual": actual}
+            item.update(crlf_diagnostic(path, expected))
+            mismatches.append(item)
     return missing, mismatches
 
 
@@ -177,7 +205,7 @@ def verify_package(
     runtime_missing = sorted(set(runtime_missing + required_runtime_missing))
 
     skill_missing: list[str] = []
-    skill_mismatches: list[dict[str, str]] = []
+    skill_mismatches: list[dict[str, Any]] = []
     if profile == "repo":
         resolved_skill_root = (skill_root or root / ".claude" / "skills" / "research-task-orchestrator").resolve()
         skill_entries = manifest.get("skill_files", []) if isinstance(manifest.get("skill_files"), list) else []

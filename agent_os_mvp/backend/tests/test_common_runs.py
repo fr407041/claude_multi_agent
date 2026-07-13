@@ -13,7 +13,7 @@ from app.services.common_runs import collect_common_runs, get_common_run_detail
 
 class CommonRunsAdapterTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.tempdir = tempfile.TemporaryDirectory()
+        self.tempdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.db_path = Path(self.tempdir.name) / "agent_os.db"
         self.env_patch = patch.dict("os.environ", {"AGENT_OS_DB_PATH": str(self.db_path)}, clear=False)
         self.env_patch.start()
@@ -102,6 +102,44 @@ class CommonRunsAdapterTest(unittest.TestCase):
         self.assertEqual("Agent did not create the expected file.", gate["failure_reason"])
         self.assertIn("do not accept prose-only output", gate["user_hint"])
         self.assertEqual("ARTIFACT_NOT_CREATED_BY_MODEL", gate["failure_category"])
+
+    def test_micro_gate_content_failure_gets_actionable_user_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            run_set = root / "micro-gates-20260712T030506Z"
+            run_set.mkdir()
+            run_dir = root / "run-d"
+            article = run_dir / "ptt-stock-live" / "article.json"
+            article.parent.mkdir(parents=True)
+            article.write_text(json.dumps({"title": "x", "url": "https://www.ptt.cc/bbs/Stock/M.1234567890.A.ABC.html", "body": "short"}), encoding="utf-8")
+            summary = {
+                "run_set_id": run_set.name,
+                "run_set_dir": str(run_set),
+                "started_at_utc": "2026-07-12T03:05:06Z",
+                "finished_at_utc": "2026-07-12T03:06:06Z",
+                "pass": False,
+                "failed_gate": "D",
+                "gates": [
+                    {
+                        "gate": "D",
+                        "api_status": "failed",
+                        "return_code": 1,
+                        "verifier_pass": False,
+                        "verifier_exit_code": 1,
+                        "failure_category": "ARTIFACT_CONTENT_TOO_SHORT",
+                        "run_dir": str(run_dir),
+                    }
+                ],
+            }
+            (run_set / "run-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+            with patch.dict("os.environ", {"MICRO_GATES_RUNS_ROOT": tempdir, "AI_COMPANY_RESULTS_ROOT": str(root / "results"), "FAB_AGENT_POC_RESULTS_ROOT": str(root / "fab")}, clear=False):
+                detail = get_common_run_detail(run_set.name)
+
+        gate = detail["technical_details"]["validation_details"][0]
+        self.assertEqual("Agent created the file, but the content did not meet the validation contract.", gate["failure_reason"])
+        self.assertIn("fix the content", gate["user_hint"])
+        self.assertTrue(gate["actual_artifact"]["exists"])
 
     def test_micro_gate_windows_host_path_maps_to_watched_root(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

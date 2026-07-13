@@ -3,8 +3,16 @@
   "release_id": "2026.07.11-company.13",
   "runtime_files": [
     {
+      "path": ".gitattributes",
+      "sha256": "9c01fcef44cefc205b1f1333d6bd18feaaaca7f926f7e73f7626998141013b71"
+    },
+    {
       "path": "scripts/package_contract.py",
-      "sha256": "711817ab4ac2c892b5de816a7ca7ad78d1bff9a4805762d2561c6bd17e17b03f"
+      "sha256": "115493d272cc8c007d99f78eb4cf8893fd7563edb6904f574862c40838601aaa"
+    },
+    {
+      "path": "scripts/task_contract.py",
+      "sha256": "3e3140642c21c0702085d4327d1f6da0a71b0276637baa0b17f69c1307421918"
     },
     {
       "path": "scripts/validate_ai_company_spec.py",
@@ -12,11 +20,11 @@
     },
     {
       "path": "scripts/verify_install.py",
-      "sha256": "dade0a79ab4789a386ad4ff3b2f187757b433aad7e53699d8ddffc5661c3c2dd"
+      "sha256": "c653f3125d30ca3da266524d3ecf96ffcd3bacfcb49c1557bb4128a0c1c12c2a"
     },
     {
       "path": "scripts/verify_agent_micro_gate.py",
-      "sha256": "2064a13417be4aef29e29f93a688fd31cda57f5e1e7b907f779ba613686702cc"
+      "sha256": "506053645917acf700d142dc40863baff3a10be18c007d0759ff8c3923c51aaf"
     },
     {
       "path": "scripts/run_ai_company_task_harness.py",

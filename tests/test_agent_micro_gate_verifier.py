@@ -131,6 +131,8 @@ class AgentMicroGateVerifierTests(unittest.TestCase):
             report = verify_gate("D", run_dir)
         self.assertFalse(report["pass"])
         self.assertIn("article body missing or too short", report["fail_reasons"])
+        self.assertEqual("ARTIFACT_CONTENT_TOO_SHORT", report["failure_category"])
+        self.assertEqual("ARTIFACT_CONTRACT_FAILED", report["failure_parent_category"])
 
     def test_gate_e_missing_stock_schema_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

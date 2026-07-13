@@ -238,6 +238,8 @@ if expected:
     expected_paths = [path.parent / expected, path.parent / "worktree" / expected]
     if not any(item.exists() and item.stat().st_size > 0 for item in expected_paths):
         failure_category = "ARTIFACT_NOT_CREATED_BY_MODEL"
+if verifier.get("failure_category") and failure_category == "ARTIFACT_CONTRACT_FAILED":
+    failure_category = str(verifier.get("failure_category"))
 payload = {
     "status": "failed",
     "failure_category": failure_category,
@@ -266,13 +268,13 @@ if [[ "${TASK_EXECUTOR:-router-direct}" != "router-direct" ]]; then
   exit 2
 fi
 
-PROMPT="/no_think
-Use the research-task-orchestrator skill context. The repository verification and smoke harness already ran above. Do not call tools or emit tool JSON. Reply in plain text only. ${TASK_TEXT}"
+PROMPT="Use the research-task-orchestrator skill context. The repository verification and smoke harness already ran above. Do not call tools or emit tool JSON. Reply in plain text only. ${TASK_TEXT}"
 
-export PROMPT MODEL_NAME ROUTER_PORT ROUTER_MAX_TOKENS
+export PROMPT MODEL_NAME ROUTER_PORT ROUTER_MAX_TOKENS RUN_DIR
 python3 - <<'PY'
 import json
 import os
+from pathlib import Path
 import urllib.error
 import urllib.request
 
@@ -298,10 +300,20 @@ except urllib.error.HTTPError as exc:
     detail = exc.read().decode("utf-8", errors="replace")[:2000]
     raise RuntimeError(f"CCR /v1/messages HTTP {exc.code}: {detail}") from exc
 
+response_text = "\n".join(
+    block.get("text", "")
+    for block in data.get("content", [])
+    if block.get("type") == "text"
+)
+run_dir = Path(os.environ["RUN_DIR"])
+(run_dir / "router-direct-response.raw.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+(run_dir / "router-direct-response.txt").write_text(response_text, encoding="utf-8")
 print("router_direct_response:")
-for block in data.get("content", []):
-    if block.get("type") == "text":
-        print(block.get("text", ""))
+print(response_text)
 print("router_direct_usage:")
 print(json.dumps(data.get("usage", {}), ensure_ascii=False))
 PY
+python3 scripts/task_contract.py \
+  --task-file "${TASK_FILE}" \
+  --response-file "${RUN_DIR}/router-direct-response.txt" \
+  --out "${RUN_DIR}/task-contract.json"

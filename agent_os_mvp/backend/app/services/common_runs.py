@@ -31,6 +31,7 @@ MICRO_GATE_EXPECTED_ARTIFACTS = {
 }
 
 ARTIFACT_NOT_CREATED_CATEGORIES = {"ARTIFACT_NOT_CREATED_BY_MODEL", "ARTIFACT_NOT_ATTEMPTED"}
+ARTIFACT_CONTENT_CATEGORIES = {"ARTIFACT_CONTENT_TOO_SHORT", "SEMANTIC_ARTIFACT_CONTRACT_FAILED"}
 
 
 def _now() -> str:
@@ -160,6 +161,8 @@ def _micro_gate_failure_reason(gate: dict[str, Any]) -> str:
     failure_category = str(gate.get("failure_category") or "")
     if failure_category in ARTIFACT_NOT_CREATED_CATEGORIES:
         return "Agent did not create the expected file."
+    if failure_category in ARTIFACT_CONTENT_CATEGORIES:
+        return "Agent created the file, but the content did not meet the validation contract."
     if gate.get("verifier_pass") is False:
         return "Agent did not create output that matched the expected artifact contract."
     if str(gate.get("api_status", "")).lower() in {"failed", "timeout", "interrupted"}:
@@ -177,6 +180,8 @@ def _micro_gate_hint(gate: dict[str, Any]) -> str:
     failure_category = str(gate.get("failure_category") or "")
     if failure_category in ARTIFACT_NOT_CREATED_CATEGORIES:
         return f"Rerun only this small gate with a narrow instruction: create {expected}; do not accept prose-only output."
+    if failure_category in ARTIFACT_CONTENT_CATEGORIES:
+        return f"Rerun only this small gate and preserve the file path, but fix the content so {expected} satisfies the verifier."
     return f"Rerun this small gate and verify that the agent writes {expected}."
 
 

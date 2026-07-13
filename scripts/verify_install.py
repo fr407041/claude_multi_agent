@@ -6,6 +6,10 @@ import json
 import sys
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
 from package_contract import RUNTIME_REQUIRED_PATHS, verify_package
 from validate_ai_company_spec import validate_spec
 
@@ -155,7 +159,12 @@ def main() -> int:
         if report["hash_mismatches"]:
             print("hash mismatches:")
             for item in report["hash_mismatches"]:
-                print(f"- {item['path']}")
+                detail = f"- {item['path']}"
+                if item.get("probable_cause"):
+                    detail += f" ({item['probable_cause']})"
+                if item.get("remediation"):
+                    detail += f"\n  remediation: {item['remediation']}"
+                print(detail)
         if report["spec_errors"]:
             print("spec errors:")
             for item in report["spec_errors"]:
