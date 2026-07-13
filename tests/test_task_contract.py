@@ -12,6 +12,15 @@ class TaskContractTests(unittest.TestCase):
             'router_direct_response:\n{"ok": true, "repo": "fr407041/claude_multi_agent"}\n',
         )
         self.assertTrue(report["passed"], report["failed_checks"])
+        self.assertTrue(report["contract_required"])
+
+    def test_return_exact_json_only_contract_passes(self) -> None:
+        report = verify_task_contract(
+            'Return exact JSON only: {"ok":true,"repo":"fr407041/claude_multi_agent","contract":"exact_json"}',
+            '{"ok":true,"repo":"fr407041/claude_multi_agent","contract":"exact_json"}',
+        )
+        self.assertTrue(report["passed"], report["failed_checks"])
+        self.assertTrue(report["contract_required"])
 
     def test_exact_json_contract_blocks_wrong_output(self) -> None:
         report = verify_task_contract(

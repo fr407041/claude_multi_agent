@@ -150,6 +150,31 @@ runtime writes `task-contract.json` and only reports success if the model output
 satisfies that task contract. Contract failures use
 `TASK_OUTPUT_CONTRACT_FAILED`.
 
+If you reuse an existing Docker image and only mount the latest repo, you must
+also mount the repo runtime override:
+
+```text
+./agent-test-runtime/run_task.sh:/app/runtime/run_task.sh:ro
+```
+
+Otherwise the container may keep executing the baked image runtime. Verify the
+no-rebuild path before trusting `/run-task`:
+
+```bash
+API_BASE=http://127.0.0.1:18080 bash scripts/run-task-contract-smoke.sh
+```
+
+On PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-task-contract-smoke.ps1 -ApiBase http://127.0.0.1:18080
+```
+
+If this reports `STALE_IMAGE_RUNTIME`, the latest repo is mounted but the
+container is not executing the mounted runtime override. Use
+`docker-compose.agent-test.yml`, add the runtime override mount to `docker run`,
+or rebuild the image.
+
 Common live demo:
 
 ```bash

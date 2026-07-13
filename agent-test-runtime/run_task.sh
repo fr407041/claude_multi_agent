@@ -186,7 +186,15 @@ ${TASK_TEXT}"
   snapshot_artifacts "${GATE:-none}" "1" "before"
   run_claude_attempt "1" "$BASE_PROMPT"
   snapshot_artifacts "${GATE:-none}" "1" "after"
-    if [[ -n "$GATE" ]]; then
+  if [[ -z "$GATE" ]]; then
+    cp "${RUN_DIR}/claude-attempt-1.stdout.log" "${RUN_DIR}/claude-code-response.txt"
+    python3 scripts/task_contract.py \
+      --task-file "${TASK_FILE}" \
+      --response-file "${RUN_DIR}/claude-code-response.txt" \
+      --out "${RUN_DIR}/task-contract.json"
+    exit 0
+  fi
+  if [[ -n "$GATE" ]]; then
     if run_gate_verifier "$GATE" "1"; then
       exit 0
     fi

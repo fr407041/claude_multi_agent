@@ -32,6 +32,7 @@ def _expected_json_from_task(task_text: str) -> Any | None:
 
     patterns = [
         r"(?:reply|respond|output|return)\s+(?:with\s+)?(?:exactly\s+)?(?:this\s+)?(?:json|JSON)\s*[:：]?\s*(\{.*?\})",
+        r"(?:reply|respond|output|return)\s+(?:exact|exactly)\s+(?:json|JSON)\s+(?:only\s*)?[:：]?\s*(\{.*?\})",
         r"(?:exact|exactly)\s+(?:json|JSON)\s*[:：]?\s*(\{.*?\})",
     ]
     for pattern in patterns:

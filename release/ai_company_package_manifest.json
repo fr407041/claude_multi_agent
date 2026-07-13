@@ -8,11 +8,11 @@
     },
     {
       "path": "scripts/package_contract.py",
-      "sha256": "115493d272cc8c007d99f78eb4cf8893fd7563edb6904f574862c40838601aaa"
+      "sha256": "f141ab4cbdb22a3e04f9c929c2fc0c9e22a14794d16ccca762683b2409d91040"
     },
     {
       "path": "scripts/task_contract.py",
-      "sha256": "3e3140642c21c0702085d4327d1f6da0a71b0276637baa0b17f69c1307421918"
+      "sha256": "4473a1d8fc4837a1874deb0d2c29c26edca0dfe93b672bb00c631fda2749a3c6"
     },
     {
       "path": "scripts/validate_ai_company_spec.py",
@@ -89,6 +89,14 @@
     {
       "path": "scripts/run-shopping-site-common-demo.sh",
       "sha256": "9f77f83a28ea0dd40ffcebec372235611ff27130c8e9f54a53240dd1ae6c2597"
+    },
+    {
+      "path": "scripts/run-task-contract-smoke.sh",
+      "sha256": "a32ac6b309dd6d3ee02304b2e1c07d8973131cbef9affaa9fd9106b44735c710"
+    },
+    {
+      "path": "scripts/run-task-contract-smoke.ps1",
+      "sha256": "34e2c9d684e16e65ea78a8b87b22bfe7e8bb1a43a6a1c362a014a0c1b285cd17"
     },
     {
       "path": "scripts/prepare_common_research_case.py",

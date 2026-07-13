@@ -45,6 +45,8 @@ RUNTIME_REQUIRED_PATHS = [
     "scripts/goal_driven_workflow.py",
     "scripts/run_goal_driven_workflow.py",
     "scripts/run-shopping-site-common-demo.sh",
+    "scripts/run-task-contract-smoke.sh",
+    "scripts/run-task-contract-smoke.ps1",
     "scripts/prepare_common_research_case.py",
     "scripts/verify_common_research_artifact.py",
     "scripts/verify_generated_output_package.py",
