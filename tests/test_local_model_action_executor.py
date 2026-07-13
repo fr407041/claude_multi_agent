@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -36,12 +37,20 @@ class LocalModelActionExecutorTests(unittest.TestCase):
         extracted = json.loads(executor.extract_action_manifest_from_task_output(noisy))
         self.assertEqual(extracted["actions"][0]["type"], "finish")
 
-    def run_executor(self, manifest: dict, task: str = "create a probe file") -> subprocess.CompletedProcess[str]:
+    def run_executor(
+        self,
+        manifest: dict,
+        task: str = "create a probe file",
+        extra_env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         root = Path(temp_dir.name)
         manifest_path = root / "manifest.json"
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        env = None
+        if extra_env:
+            env = {**os.environ, **extra_env}
         return subprocess.run(
             [
                 sys.executable,
@@ -61,6 +70,7 @@ class LocalModelActionExecutorTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            env=env,
         )
 
     def test_executes_allowlisted_manifest_and_emits_artifacts(self) -> None:
@@ -81,6 +91,128 @@ class LocalModelActionExecutorTests(unittest.TestCase):
         self.assertTrue((run_dir / "ai_company" / "task_harness_report.json").exists())
         self.assertTrue((run_dir / "results" / "job-001.status.json").exists())
         self.assertIn("return_code=0", (run_dir / "results" / "job-001.exec.log").read_text(encoding="utf-8"))
+
+    def test_read_file_uses_safe_context_and_chunks_large_file(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        defaults = root / "defaults.json"
+        defaults.write_text(
+            json.dumps(
+                {
+                    "role_context_budgets": {"default": {"input_tokens": 100, "output_tokens": 50}},
+                    "file_soft_limit_bytes": 64,
+                    "file_hard_limit_bytes": 100000,
+                    "context_chunk_chars": 40,
+                    "context_chunk_overlap_chars": 0,
+                    "max_chunks_per_file": 2,
+                }
+            ),
+            encoding="utf-8",
+        )
+        manifest_path = root / "manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "actions": [
+                        {"type": "write_file", "path": "large.txt", "content": "A" * 500},
+                        {"type": "read_file", "path": "large.txt"},
+                        {"type": "finish", "summary": "safe read done", "artifacts": ["large.txt"]},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--task",
+                "read a large file safely",
+                "--manifest-file",
+                str(manifest_path),
+                "--out-root",
+                str(root / "runs"),
+                "--run-id",
+                "run-safe-read-chunked",
+                "--expected-artifact",
+                "large.txt",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            env={**os.environ, "AI_COMPANY_DEFAULTS_FILE": str(defaults)},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        report = json.loads(proc.stdout)
+        actions = json.loads((Path(report["run_dir"]) / "results" / "job-001.action_log.json").read_text())["actions"]
+        read_action = next(item for item in actions if item["type"] == "read_file")
+        self.assertEqual(read_action["status"], "ok")
+        self.assertEqual(read_action["context_guard_action"], "chunked_context")
+        self.assertGreater(read_action["skipped_bytes"], 0)
+        self.assertLess(read_action["included_chars"], read_action["size_bytes"])
+        self.assertEqual(read_action["chars"], read_action["included_chars"])
+
+    def test_read_file_blocks_file_above_hard_limit(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        defaults = root / "defaults.json"
+        defaults.write_text(
+            json.dumps(
+                {
+                    "role_context_budgets": {"default": {"input_tokens": 100, "output_tokens": 50}},
+                    "file_soft_limit_bytes": 32,
+                    "file_hard_limit_bytes": 64,
+                    "context_chunk_chars": 40,
+                    "context_chunk_overlap_chars": 0,
+                    "max_chunks_per_file": 2,
+                }
+            ),
+            encoding="utf-8",
+        )
+        manifest_path = root / "manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "actions": [
+                        {"type": "write_file", "path": "too-large.txt", "content": "B" * 200},
+                        {"type": "read_file", "path": "too-large.txt"},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--task",
+                "read a too large file",
+                "--manifest-file",
+                str(manifest_path),
+                "--out-root",
+                str(root / "runs"),
+                "--run-id",
+                "run-safe-read-hard-block",
+                "--expected-artifact",
+                "too-large.txt",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            env={**os.environ, "AI_COMPANY_DEFAULTS_FILE": str(defaults)},
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        report = json.loads(proc.stdout)
+        self.assertEqual(report["overall_status"], "fail")
+        actions = json.loads((Path(report["run_dir"]) / "results" / "job-001.action_log.json").read_text())["actions"]
+        read_action = actions[-1]
+        self.assertEqual(read_action["type"], "read_file")
+        self.assertEqual(read_action["status"], "failed")
+        self.assertEqual(read_action["error"], "INPUT_FILE_TOO_LARGE")
 
     def test_failed_command_persists_stdout_and_stderr(self) -> None:
         proc = self.run_executor(

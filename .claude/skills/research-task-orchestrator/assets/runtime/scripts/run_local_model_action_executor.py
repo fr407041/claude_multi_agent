@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_token_ledger import build_agent_token_ledger, token_usage_from_text
+from safe_file_context import safe_read_file
 from verify_agent_micro_gate import VALID_GATES, verify_gate
 
 
@@ -296,10 +297,40 @@ def execute_manifest(
             provenance[rel] = {"action_type": "write_file", "action_index": index}
             entry.update({"path": rel, "bytes": len(content.encode("utf-8")), "status": "ok"})
         elif action_type == "read_file":
-            target = ensure_within(worktree, str(action.get("path") or ""))
-            if not target.exists() or not target.is_file():
-                raise ValueError(f"read_file target missing: {action.get('path')}")
-            entry.update({"path": str(target.relative_to(worktree).as_posix()), "chars": len(read_text(target)), "status": "ok"})
+            requested_path = str(action.get("path") or "")
+            safe_result = safe_read_file(worktree, requested_path)
+            public_result = {
+                key: value
+                for key, value in safe_result.items()
+                if key
+                in {
+                    "path",
+                    "status",
+                    "error",
+                    "size_bytes",
+                    "included_chars",
+                    "skipped_bytes",
+                    "estimated_tokens",
+                    "source_estimated_tokens",
+                    "context_guard_action",
+                    "soft_limit_exceeded",
+                    "chunk_count",
+                    "context_budget_tokens",
+                }
+            }
+            entry.update(public_result)
+            entry["chars"] = int(safe_result.get("included_chars") or 0)
+            if safe_result.get("status") != "ok":
+                entry.update(
+                    {
+                        "status": "failed",
+                        "error": str(safe_result.get("error") or safe_result.get("status") or "safe read failed"),
+                        "finished_at": now_iso(),
+                    }
+                )
+                action_log.append(entry)
+                raise ActionExecutionError(entry["error"], action_log, generated_files, final_summary)
+            entry["status"] = "ok"
         elif action_type == "run_command":
             command = action.get("command")
             if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):

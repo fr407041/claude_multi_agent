@@ -8,7 +8,7 @@
     },
     {
       "path": "scripts/package_contract.py",
-      "sha256": "f141ab4cbdb22a3e04f9c929c2fc0c9e22a14794d16ccca762683b2409d91040"
+      "sha256": "6df23f3f2d6a00fdc26139ac89bd883b70eb51af06a2c11d7a9ef07b3cbf5039"
     },
     {
       "path": "scripts/task_contract.py",
@@ -71,8 +71,12 @@
       "sha256": "482521e4f4739e9d99098a1cb5d39637716f6280661e6ec6a74d22fbf819a692"
     },
     {
+      "path": "scripts/safe_file_context.py",
+      "sha256": "e9c16eebd59c22ab4989c8f0aab786d75ef8ac36f96e9911504c37afa5808149"
+    },
+    {
       "path": "scripts/run_local_model_action_executor.py",
-      "sha256": "229ed7f9ad124ab79393fb503959c08c2ec383f9f367a6340e518190ceed963b"
+      "sha256": "8abac785f951f82766e95c5a24c7385f8afdeb8987de19c0559db4b13c9e4edd"
     },
     {
       "path": "scripts/probe_provider_diagnostic.py",

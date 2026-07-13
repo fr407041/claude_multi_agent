@@ -40,6 +40,7 @@ RUNTIME_REQUIRED_PATHS = [
     "scripts/agent_profile_resolver.py",
     "scripts/agent_token_ledger.py",
     "scripts/bounded_context_loader.py",
+    "scripts/safe_file_context.py",
     "scripts/run_local_model_action_executor.py",
     "scripts/probe_provider_diagnostic.py",
     "scripts/goal_driven_workflow.py",

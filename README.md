@@ -150,6 +150,21 @@ runtime writes `task-contract.json` and only reports success if the model output
 satisfies that task contract. Contract failures use
 `TASK_OUTPUT_CONTRACT_FAILED`.
 
+Managed workers and the local action executor also use a safe-read guard for
+file context. `read_file` actions go through `scripts/safe_file_context.py`,
+which checks file size first, then records bounded context metadata instead of
+blindly reading whole files into model context. Action logs include
+`size_bytes`, `included_chars`, `skipped_bytes`, `estimated_tokens`,
+`source_estimated_tokens`, and `context_guard_action` (`full_read`,
+`chunked_context`, or `blocked`). Files over `file_hard_limit_bytes` fail with
+`INPUT_FILE_TOO_LARGE`; files over the soft limit are chunked and audited.
+
+This is enforceable for CIM-managed workers and the local-model action
+executor because those code paths route file reads through the wrapper. It is
+not a hard sandbox for unrestricted Claude Code or arbitrary shell access. If a
+model is granted full tools / `--dangerously-skip-permissions`, file-read policy
+must be enforced by that tool layer or by a container/filesystem sandbox.
+
 If you reuse an existing Docker image and only mount the latest repo, you must
 also mount the repo runtime override:
 
