@@ -8,7 +8,7 @@
     },
     {
       "path": "scripts/package_contract.py",
-      "sha256": "6df23f3f2d6a00fdc26139ac89bd883b70eb51af06a2c11d7a9ef07b3cbf5039"
+      "sha256": "b866947a141e82253a6f1648302d0284873fb764b989b5d40caf0032f0b95801"
     },
     {
       "path": "scripts/task_contract.py",
@@ -40,7 +40,7 @@
     },
     {
       "path": "scripts/run_ai_company_execution.py",
-      "sha256": "9f13de0ad2859bc2bf06e5b5389c7b4e007840d495a52f9a5a0026bba40eaef6"
+      "sha256": "49bda6037126ac1b376ceb2d8ab6f548c52e61d0615adbac21797d17a7805ee7"
     },
     {
       "path": "scripts/run_ai_company_reviewer_worker.py",
@@ -95,6 +95,14 @@
       "sha256": "9f77f83a28ea0dd40ffcebec372235611ff27130c8e9f54a53240dd1ae6c2597"
     },
     {
+      "path": "scripts/run-github-repo-scoring-demo.sh",
+      "sha256": "bb965b34c72a9b95fd5a726bd3b9444fccddcc32dfc8eb202e0039fb684d3f59"
+    },
+    {
+      "path": "scripts/run_github_repo_scoring_demo.py",
+      "sha256": "b555d0be3705bcca9b0bed0a6306885590f29d6403a49cf31f7f02bbfc1d821b"
+    },
+    {
       "path": "scripts/run-task-contract-smoke.sh",
       "sha256": "a32ac6b309dd6d3ee02304b2e1c07d8973131cbef9affaa9fd9106b44735c710"
     },
@@ -103,8 +111,16 @@
       "sha256": "34e2c9d684e16e65ea78a8b87b22bfe7e8bb1a43a6a1c362a014a0c1b285cd17"
     },
     {
+      "path": "scripts/prepare_github_repo_scoring_case.py",
+      "sha256": "2462082859f137010777b367baf8681f30023506e5ec997e66972b3b36469d15"
+    },
+    {
       "path": "scripts/prepare_common_research_case.py",
       "sha256": "dc25da9c460c0a8dca68e30e02374cff530292407a26c78a234d132db016c3a3"
+    },
+    {
+      "path": "scripts/verify_github_repo_scoring_artifact.py",
+      "sha256": "324cf77790925bb11942112a2812000db4e145aa9a7d2b4b8ff10cf49091a4eb"
     },
     {
       "path": "scripts/verify_common_research_artifact.py",
@@ -169,6 +185,30 @@
     {
       "path": "docs/ai_specs/shopping-site-common-demo.json",
       "sha256": "4337d040aaa1ad422a2a30a4e474fda2be0c4b124f7a8f990fbcf4ecf70fed33"
+    },
+    {
+      "path": "docs/ai_specs/github-repo-scoring-demo.json",
+      "sha256": "6db59132ac85548cba414ef7b5c9e443e9bf8b30871b21f188c87bf35d1e89f5"
+    },
+    {
+      "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repo_metadata.json",
+      "sha256": "b672907b5c4e932d49da611d36f655b3484c343823ee1af2eb8f1e1eca59cd7a"
+    },
+    {
+      "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repository_inventory.json",
+      "sha256": "947e29313fa73c628ba675e8d782ac84555702e65f814e6ac7d85de47319cd6e"
+    },
+    {
+      "path": "tests/fixtures/github_repo_scoring/openhands_prepared/file_context_manifest.json",
+      "sha256": "5d482c523516ff2db149e2fe83d8a30797b71dede331df5fba9f0c23ed1cb41e"
+    },
+    {
+      "path": "tests/fixtures/github_repo_scoring/openhands_prepared/bounded_file_context.md",
+      "sha256": "5dc2e27ed6973cb407fc70d6dbf5c0107339a9fd0164992810246643c243bc25"
+    },
+    {
+      "path": "tests/fixtures/github_repo_scoring/openhands_prepared/inventory_shards/shard-000.json",
+      "sha256": "947e29313fa73c628ba675e8d782ac84555702e65f814e6ac7d85de47319cd6e"
     },
     {
       "path": "tests/fixtures/ai_company_release_readiness_demo/release_brief.md",

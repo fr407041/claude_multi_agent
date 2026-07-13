@@ -442,6 +442,106 @@ Takeaway: the generated output package is ready for human review; checkout is a 
     return None
 
 
+def repo_scoring_mock_content(rel_file: str, scope_path: Path | None = None) -> str | None:
+    metadata: dict[str, Any] = {}
+    context_manifest: dict[str, Any] = {}
+    if scope_path is not None:
+        try:
+            metadata = read_json(scope_path / "repo_metadata.json")
+        except Exception:
+            metadata = {}
+        try:
+            context_manifest = read_json(scope_path / "file_context_manifest.json")
+        except Exception:
+            context_manifest = {}
+    total_files = int(metadata.get("total_files") or 4)
+    context_files = context_manifest.get("files", []) if isinstance(context_manifest.get("files"), list) else []
+    guard_actions = sorted({str(item.get("context_guard_action")) for item in context_files if isinstance(item, dict) and item.get("context_guard_action")}) or ["full_read", "chunked_context", "blocked"]
+    target_repo = str(metadata.get("target_repo") or "All-Hands-AI/OpenHands")
+    if rel_file == "repo-score/file-coverage.json":
+        return json.dumps(
+            {
+                "schema_version": "repo-file-coverage.v1",
+                "all_files_considered": True,
+                "total_files": total_files,
+                "inventory_files": total_files,
+                "context_manifest_files": len(context_files) or total_files,
+                "safe_read_policy": "Every file was inventoried; text files were read through bounded safe-read context and large/binary files were recorded with skipped bytes.",
+                "context_guard_actions": guard_actions,
+                "limitations": ["Large files are evaluated through bounded chunks and metadata, not a single full prompt."],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    if rel_file == "repo-score/scorecard.json":
+        return json.dumps(
+            {
+                "schema_version": "repo-scorecard.v1",
+                "target_repo": target_repo,
+                "overall_score": 82,
+                "categories": {
+                    "architecture": {"score": 84, "rationale": "Clear separation of runtime, agent, and integration concerns."},
+                    "maintainability": {"score": 80, "rationale": "Good modularity, but large workflow surfaces need stronger ownership maps."},
+                    "testing": {"score": 78, "rationale": "Broad tests exist; add more failure-contract and migration coverage."},
+                    "documentation": {"score": 83, "rationale": "Strong onboarding docs; improve operator runbook clarity."},
+                    "security": {"score": 79, "rationale": "Tool execution and sandbox boundaries need continuously audited defaults."},
+                    "developer_experience": {"score": 86, "rationale": "Developer workflow is approachable for common extension tasks."},
+                },
+                "recommendations": [
+                    "Add a concise architecture decision index for new contributors.",
+                    "Define stricter tool-permission regression tests around agent execution.",
+                    "Publish a smaller first-run path that avoids optional integrations.",
+                    "Add repository-wide ownership metadata for high-churn subsystems.",
+                    "Make failure categories and repair actions easier to discover from logs.",
+                ],
+                "evidence": ["repo_metadata.json", "repository_inventory.json", "file_context_manifest.json", "bounded_file_context.md"],
+                "limitations": ["Mock scoring validates package shape; live scoring quality depends on configured model and current repository contents."],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    if rel_file == "repo-score/improvement-plan.md":
+        return """# OpenHands improvement plan
+
+1. Create a one-page architecture map that links agent runtime, tool execution, sandboxing, frontend, and evaluation paths.
+2. Add permission-boundary regression tests for blocked tools, oversized file reads, and failed artifact contracts.
+3. Split first-run documentation from advanced deployment documentation so new users can complete one successful path quickly.
+4. Add ownership labels for major subsystems and map high-risk files to maintainers or review groups.
+5. Improve log-to-action guidance by mapping common failure categories to concrete repair commands.
+
+These actions are based on the every-file inventory, bounded context manifest, and generated scorecard.
+"""
+    if rel_file == "repo-score/report.md":
+        return f"""# GitHub repository scoring report
+
+Target repository: {target_repo}.
+
+The scoring package considered {total_files} file(s) through `repository_inventory.json` and `file_context_manifest.json`. It did not load the whole repository into one prompt. Text-like files used the safe-read context guard; large or unsupported files were represented by metadata, skipped bytes, and context guard status.
+
+Overall score: 82/100.
+
+Main improvements:
+
+- Clarify architecture ownership for new contributors.
+- Strengthen permission-boundary and artifact-contract regression tests.
+- Simplify the first successful install/run path.
+- Map major subsystems to owners.
+- Convert frequent failure categories into repair playbooks.
+
+Limitations: this is a bounded repository review. Recommendations should be checked against current maintainers' roadmap before implementation.
+"""
+    if rel_file == "summary.md":
+        return f"""# Repository scoring summary
+
+- Scored {target_repo} with every-file inventory and bounded safe-read context evidence.
+- Produced coverage, scorecard, improvement plan, and human report artifacts under `repo-score/`.
+- Avoided token overflow by using context manifest metadata, skipped-byte accounting, and bounded snippets instead of one full-repo prompt.
+
+Takeaway: the repository scoring package is ready for review; recommendations should be validated against the current project roadmap.
+"""
+    return None
+
+
 def write_mock_status(run_dir: Path, job: dict, status: str, verification_note: str, changed_count: int = 0) -> Path:
     results_dir = run_dir / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -513,10 +613,19 @@ def write_mock_status(run_dir: Path, job: dict, status: str, verification_note: 
         scope_path = Path(str(job.get("scope_path", run_dir / "worktree")))
         scope_path.mkdir(parents=True, exist_ok=True)
         written_files = []
+        repo_scoring_job = any(
+            str(item).startswith("repo-score/") for item in [*job.get("inputs", []), *job.get("outputs", []), *job.get("files", [])]
+        )
         for rel_file in job.get("outputs", job.get("files", [])):
             target = scope_path / rel_file
             target.parent.mkdir(parents=True, exist_ok=True)
-            deterministic_content = shopping_site_mock_content(str(rel_file))
+            deterministic_content = (
+                repo_scoring_mock_content(str(rel_file), scope_path)
+                if repo_scoring_job
+                else shopping_site_mock_content(str(rel_file))
+            )
+            if deterministic_content is None and not repo_scoring_job:
+                deterministic_content = repo_scoring_mock_content(str(rel_file), scope_path)
             if deterministic_content is not None:
                 target.write_text(deterministic_content, encoding="utf-8")
             elif target.suffix.lower() == ".json":

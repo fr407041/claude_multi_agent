@@ -190,7 +190,7 @@ container is not executing the mounted runtime override. Use
 `docker-compose.agent-test.yml`, add the runtime override mount to `docker run`,
 or rebuild the image.
 
-Common live demo:
+Common generated-output live demo:
 
 ```bash
 bash scripts/run-shopping-site-common-demo.sh live
@@ -213,6 +213,33 @@ bash scripts/run-shopping-site-common-demo.sh mock
 Mock mode does not prove model quality. It proves the installed repo, generated
 output verifier, result format, and dashboard display can complete on a clean
 machine without depending on a live provider.
+
+GitHub repository scoring demo:
+
+```bash
+bash scripts/run-github-repo-scoring-demo.sh mock
+bash scripts/run-github-repo-scoring-demo.sh live
+```
+
+The default target is `All-Hands-AI/OpenHands`. Override it without editing the
+repo:
+
+```bash
+GITHUB_REPO_SCORING_TARGET=All-Hands-AI/OpenHands \
+GITHUB_REPO_SCORING_REF=main \
+bash scripts/run-github-repo-scoring-demo.sh live
+```
+
+This case prepares an every-file repository inventory, `file_context_manifest`,
+bounded snippets, and inventory shards before dispatching the skill workflow.
+The agent scores architecture, maintainability, testing, documentation,
+security, and developer experience, then writes concrete improvement
+recommendations under `repo-score/`.
+
+The important contract is coverage, not prompt stuffing: every file must appear
+in the inventory/context manifest, while large or unsupported files are handled
+through safe-read metadata, skipped bytes, and bounded chunks to avoid token
+overflow.
 
 Dashboard verification:
 

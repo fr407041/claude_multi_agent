@@ -1,0 +1,44 @@
+{
+  "files": [
+    {
+      "path": "docs/architecture.md",
+      "size_bytes": 161,
+      "sha256": "76194698d82b192bf32b1c502c833f2d6bf910bd8bba361bab3cabe35cce5cb6",
+      "language": "md",
+      "binary": false,
+      "included_for_context": true
+    },
+    {
+      "path": "openhands/core.py",
+      "size_bytes": 374,
+      "sha256": "27fb6d19210e0c5234deed68def91a251a2df38804c04ee62be94a882a61317f",
+      "language": "py",
+      "binary": false,
+      "included_for_context": true
+    },
+    {
+      "path": "pyproject.toml",
+      "size_bytes": 103,
+      "sha256": "2f097e25b3dec2185edb0c7f7d449b1b04becab3de45e395e39f78c86f7d33c6",
+      "language": "toml",
+      "binary": false,
+      "included_for_context": true
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 236,
+      "sha256": "0189ee7585636555b633defb4602e08e27507a04afd2785adaa433a28fa41f5d",
+      "language": "md",
+      "binary": false,
+      "included_for_context": true
+    },
+    {
+      "path": "tests/test_core.py",
+      "size_bytes": 238,
+      "sha256": "c3770943f836bde1d738668530743d8eefa27bdbaca8bf198bcbf1ae0014d09f",
+      "language": "py",
+      "binary": false,
+      "included_for_context": true
+    }
+  ]
+}

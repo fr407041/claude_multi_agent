@@ -1,0 +1,159 @@
+{
+  "id": "github-repo-scoring-demo",
+  "goal": "Score a GitHub repository using the installed research-task-orchestrator skill, considering every file through bounded safe-read evidence and producing concrete improvement recommendations.",
+  "strategy": "Prepare an every-file repository inventory and bounded context manifest, run a bounded meeting, then produce coverage, scorecard, improvement plan, and human report artifacts. The model must not load the whole repository into one prompt.",
+  "workflow": {"mode": "goal_driven", "max_jobs": 5, "max_replans": 1},
+  "verification": {"type": "generic_contract", "claim_evidence_required": true},
+  "recovery": {"strategy": "dependency_aware", "max_attempts_per_job": 1},
+  "agent_profile_mode": "auto",
+  "scope_subdir": "tests/fixtures/github_repo_scoring/openhands_prepared",
+  "post_verify_command": "python3 {root}/scripts/verify_github_repo_scoring_artifact.py {scope_path}",
+  "goal_plan": {
+    "goal": "Score a GitHub repository using bounded every-file evidence and produce improvement recommendations.",
+    "supplied_inputs": [
+      "repo_metadata.json",
+      "repository_inventory.json",
+      "file_context_manifest.json",
+      "bounded_file_context.md",
+      "inventory_shards/shard-000.json"
+    ],
+    "jobs": [
+      {
+        "id": "job-001",
+        "title": "Verify every-file coverage",
+        "capability": "analyze",
+        "instruction": "Create repo-score/file-coverage.json. Read repo_metadata.json, repository_inventory.json, file_context_manifest.json, and inventory shards. Confirm every inventoried file has a context status. Include total_files, inventory_files, context_manifest_files, all_files_considered, context_guard_actions, skipped_bytes summary, and limitations. Do not claim full raw repository loading; use safe-read evidence.",
+        "depends_on": [],
+        "inputs": ["repo_metadata.json", "repository_inventory.json", "file_context_manifest.json", "inventory_shards/shard-000.json"],
+        "outputs": ["repo-score/file-coverage.json"],
+        "files": ["repo-score/file-coverage.json"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "repo-score/file-coverage.json"},
+          {"type": "text_min_chars", "path": "repo-score/file-coverage.json", "min_chars": 180},
+          {"type": "claim_evidence"}
+        ],
+        "evidence_requirements": ["repo_metadata.json", "repository_inventory.json", "file_context_manifest.json"],
+        "success_check": "Coverage JSON exists and states every file was considered through inventory/context manifest evidence.",
+        "owner_role": "research_agent",
+        "agent_profile": "research_agent",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only repo-score/file-coverage.json."
+      },
+      {
+        "id": "job-002",
+        "title": "Create repository scorecard",
+        "capability": "analyze",
+        "instruction": "Create repo-score/scorecard.json. Score the repository from 0 to 100 using categories: architecture, maintainability, testing, documentation, security, and developer_experience. Use evidence from every-file inventory, bounded_file_context.md, and file_context_manifest.json. Include at least five concrete recommendations and limitations.",
+        "depends_on": ["job-001"],
+        "inputs": ["repo_metadata.json", "repository_inventory.json", "file_context_manifest.json", "bounded_file_context.md", "repo-score/file-coverage.json"],
+        "outputs": ["repo-score/scorecard.json"],
+        "files": ["repo-score/scorecard.json"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "repo-score/scorecard.json"},
+          {"type": "text_min_chars", "path": "repo-score/scorecard.json", "min_chars": 500},
+          {"type": "claim_evidence"}
+        ],
+        "evidence_requirements": ["score categories, recommendations, safe-read limitations"],
+        "success_check": "Scorecard JSON exists with six categories, numeric overall score, and recommendations.",
+        "owner_role": "reviewer_worker",
+        "agent_profile": "reviewer_worker",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only repo-score/scorecard.json."
+      },
+      {
+        "id": "job-003",
+        "title": "Write improvement plan",
+        "capability": "synthesize",
+        "instruction": "Create repo-score/improvement-plan.md. Provide at least five prioritized improvements for the repository. Each item must explain the problem, why it matters, and a practical first fix. Ground the plan in scorecard.json and the file coverage evidence.",
+        "depends_on": ["job-001", "job-002"],
+        "inputs": ["repo-score/file-coverage.json", "repo-score/scorecard.json", "bounded_file_context.md"],
+        "outputs": ["repo-score/improvement-plan.md"],
+        "files": ["repo-score/improvement-plan.md"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "repo-score/improvement-plan.md"},
+          {"type": "text_min_chars", "path": "repo-score/improvement-plan.md", "min_chars": 500},
+          {"type": "claim_evidence"},
+          {"type": "goal_answering"}
+        ],
+        "evidence_requirements": ["prioritized improvement actions with rationale"],
+        "success_check": "Improvement plan exists and gives at least five actionable improvements.",
+        "owner_role": "synthesis_agent",
+        "agent_profile": "synthesis_agent",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only repo-score/improvement-plan.md."
+      },
+      {
+        "id": "job-004",
+        "title": "Write human-readable scoring report",
+        "capability": "synthesize",
+        "instruction": "Create repo-score/report.md. Summarize the repository score, strongest areas, weakest areas, top improvements, safe-read coverage method, and limitations. Make clear every file was considered via inventory/context manifest and that large files were bounded to avoid token overflow.",
+        "depends_on": ["job-001", "job-002", "job-003"],
+        "inputs": ["repo-score/file-coverage.json", "repo-score/scorecard.json", "repo-score/improvement-plan.md", "repo_metadata.json"],
+        "outputs": ["repo-score/report.md"],
+        "files": ["repo-score/report.md"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "repo-score/report.md"},
+          {"type": "text_min_chars", "path": "repo-score/report.md", "min_chars": 400},
+          {"type": "claim_evidence"},
+          {"type": "goal_answering"}
+        ],
+        "evidence_requirements": ["score, improvements, safe-read method, limitations"],
+        "success_check": "Report exists and is understandable to a user reviewing the GitHub repository scoring result.",
+        "owner_role": "synthesis_agent",
+        "agent_profile": "synthesis_agent",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only repo-score/report.md."
+      },
+      {
+        "id": "job-005",
+        "title": "Summarize repository scoring result",
+        "capability": "synthesize",
+        "instruction": "Create summary.md with 3 short bullets and one takeaway sentence. Summarize the repository scoring package, the generated outputs, the safe-read/every-file coverage method, and the main limitation.",
+        "depends_on": ["job-001", "job-002", "job-003", "job-004"],
+        "inputs": ["repo-score/file-coverage.json", "repo-score/scorecard.json", "repo-score/improvement-plan.md", "repo-score/report.md"],
+        "outputs": ["summary.md"],
+        "files": ["summary.md"],
+        "tools": ["read", "write"],
+        "acceptance_criteria": [
+          {"type": "artifact_exists", "path": "summary.md"},
+          {"type": "text_min_chars", "path": "summary.md", "min_chars": 180},
+          {"type": "claim_evidence"},
+          {"type": "goal_answering"}
+        ],
+        "evidence_requirements": ["score package outputs, safe-read method, limitation"],
+        "success_check": "summary.md gives a concise human-readable result for the dashboard.",
+        "owner_role": "synthesis_agent",
+        "agent_profile": "synthesis_agent",
+        "worker_template": "managed_single_file",
+        "require_change": true,
+        "fallback_plan": "Repair only summary.md."
+      }
+    ]
+  },
+  "dag_validation_report": {
+    "passed": true,
+    "status": "pass",
+    "job_count": 5,
+    "topological_order": ["job-001", "job-002", "job-003", "job-004", "job-005"],
+    "errors": [],
+    "model_calls_started": 0
+  },
+  "jobs": [],
+  "expectations": {
+    "meeting_status": "MEETING_READY",
+    "min_accepted_count": 5,
+    "max_reassignment_count": 1,
+    "max_execution_jobs_run": 8,
+    "require_loop_bounded": true,
+    "require_post_verify_all_passed": true,
+    "min_artifact_score": 1.0
+  }
+}

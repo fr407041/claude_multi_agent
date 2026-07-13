@@ -1,0 +1,18 @@
+{
+  "schema_version": "github-repo-scoring-input.v1",
+  "prepared_at_utc": "2026-07-13T12:01:05.271463+00:00",
+  "target_repo": "All-Hands-AI/OpenHands",
+  "target_ref": "",
+  "source": {
+    "source_kind": "local_dir",
+    "source_dir": "D:\\codex專案\\20260711_multi_agent\\tests\\fixtures\\github_repo_scoring\\sample_source"
+  },
+  "total_files": 5,
+  "context_status_counts": {
+    "ok": 5
+  },
+  "inventory_shards": [
+    "inventory_shards/shard-000.json"
+  ],
+  "safe_read_policy": "Every file is inventoried. Text-like files are read through safe_file_context; binary/unsupported files are recorded as skipped."
+}
