@@ -53,6 +53,19 @@ def _decode(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _looks_binary_or_unsupported(data: bytes) -> bool:
+    if not data:
+        return False
+    if b"\0" in data:
+        return True
+    text = data.decode("utf-8", errors="replace")
+    if not text:
+        return False
+    replacement_count = text.count("\ufffd")
+    control_count = sum(1 for char in text if ord(char) < 32 and char not in "\n\r\t")
+    return (replacement_count / max(1, len(text)) > 0.02) or (control_count / max(1, len(text)) > 0.05)
+
+
 def _read_window(path: Path, start: int, size: int) -> bytes:
     with path.open("rb") as handle:
         handle.seek(max(0, start))
@@ -80,12 +93,27 @@ def inspect_file(path: Path) -> dict[str, Any]:
         stat = path.stat()
     except OSError as exc:
         return {"path": str(path), "exists": False, "error": str(exc)}
+    digest = ""
+    sample = b""
+    if path.is_file():
+        h = hashlib.sha256()
+        try:
+            with path.open("rb") as handle:
+                sample = handle.read(4096)
+                h.update(sample)
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    h.update(chunk)
+            digest = h.hexdigest()
+        except OSError:
+            digest = ""
     return {
         "path": str(path),
         "exists": path.exists(),
         "is_file": path.is_file(),
         "size_bytes": stat.st_size,
         "modified_ns": stat.st_mtime_ns,
+        "sha256": digest,
+        "binary_or_unsupported": _looks_binary_or_unsupported(sample),
     }
 
 
@@ -103,14 +131,32 @@ def load_file_context(
     if not info.get("exists") or not info.get("is_file"):
         return {**info, "status": "missing", "text": "", "chunks": []}
     size = int(info["size_bytes"])
+    if info.get("binary_or_unsupported"):
+        return {
+            **info,
+            "status": "skipped",
+            "reason": "binary_or_unsupported",
+            "text": "",
+            "chunks": [],
+            "chunk_count": 0,
+            "included_chars": 0,
+            "skipped_bytes": size,
+            "estimated_tokens": 0,
+            "source_estimated_tokens": estimate_tokens_from_chars(size),
+            "context_guard_action": "skipped",
+        }
     if size > hard_limit_bytes:
         return {
             **info,
             "status": "INPUT_FILE_TOO_LARGE",
             "text": "",
             "chunks": [],
+            "chunk_count": 0,
+            "included_chars": 0,
             "skipped_bytes": size,
             "estimated_tokens": estimate_tokens_from_chars(size),
+            "source_estimated_tokens": estimate_tokens_from_chars(size),
+            "context_guard_action": "blocked",
         }
 
     chunk_bytes = max(256, int(chunk_chars))
@@ -176,7 +222,14 @@ def build_bounded_context(
         path = scope / str(relative)
         remaining = max(0, max_tokens - used_tokens)
         if remaining <= 0:
-            manifest.append({"path": str(relative), "status": "CONTEXT_BUDGET_EXHAUSTED"})
+            exhausted = {
+                "path": str(relative),
+                "status": "CONTEXT_BUDGET_EXHAUSTED",
+                "context_guard_action": "blocked",
+                "skipped_bytes": 0,
+            }
+            manifest.append(exhausted)
+            errors.append(exhausted)
             continue
         loaded = load_file_context(
             path,
@@ -202,7 +255,7 @@ def build_bounded_context(
         "errors": errors,
         "estimated_input_tokens": estimate_tokens_from_chars(sum(len(block) for block in blocks)),
         "context_budget_tokens": max_tokens,
-        "context_budget_exceeded": bool(errors and any(item.get("status") == "CONTEXT_BUDGET_EXHAUSTED" for item in manifest)),
+        "context_budget_exceeded": bool(any(item.get("status") == "CONTEXT_BUDGET_EXHAUSTED" for item in manifest)),
         "skipped_bytes": sum(int(item.get("skipped_bytes", 0)) for item in manifest),
         "context_guard_actions": sorted({str(item.get("context_guard_action")) for item in manifest if item.get("context_guard_action")}),
     }

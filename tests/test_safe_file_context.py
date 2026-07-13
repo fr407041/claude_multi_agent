@@ -48,8 +48,20 @@ class SafeFileContextTests(unittest.TestCase):
             (root / "too-large.txt").write_text("B" * 200, encoding="utf-8")
             result = safe_read_file(root, "too-large.txt", defaults=defaults)
         self.assertEqual(result["status"], "INPUT_FILE_TOO_LARGE")
+        self.assertEqual(result["context_guard_action"], "blocked")
         self.assertEqual(result["skipped_bytes"], result["size_bytes"])
         self.assertEqual(result["chunks"], [])
+
+    def test_skips_binary_or_unsupported_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "blob.bin").write_bytes(b"\x00\x01\x02not-text")
+            result = safe_read_file(root, "blob.bin")
+        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(result["context_guard_action"], "skipped")
+        self.assertEqual(result["reason"], "binary_or_unsupported")
+        self.assertEqual(result["skipped_bytes"], result["size_bytes"])
+        self.assertTrue(result["sha256"])
 
 
 if __name__ == "__main__":

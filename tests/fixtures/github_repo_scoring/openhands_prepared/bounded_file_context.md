@@ -1,7 +1,14 @@
+# Bounded repository evidence
+
+This evidence is generated automatically from the file context guard.
+It is not a full raw repository prompt. Omitted, skipped, blocked, and chunked bytes are recorded in file_context_manifest.json.
+Estimated evidence tokens: 275
+Evidence token budget: 12000
 ## File: docs/architecture.md
 size_bytes: 161
 context_guard_action: full_read
 skipped_bytes: 0
+sha256: 76194698d82b192bf32b1c502c833f2d6bf910bd8bba361bab3cabe35cce5cb6
 
 # Architecture
 
@@ -12,6 +19,7 @@ document tool boundaries, sandbox assumptions, and audit evidence.
 size_bytes: 374
 context_guard_action: full_read
 skipped_bytes: 0
+sha256: 27fb6d19210e0c5234deed68def91a251a2df38804c04ee62be94a882a61317f
 
 from __future__ import annotations
 
@@ -33,6 +41,7 @@ def plan_task(goal: str) -> dict[str, str]:
 size_bytes: 103
 context_guard_action: full_read
 skipped_bytes: 0
+sha256: 2f097e25b3dec2185edb0c7f7d449b1b04becab3de45e395e39f78c86f7d33c6
 
 [project]
 name = "openhands-sample"
@@ -45,6 +54,7 @@ testpaths = ["tests"]
 size_bytes: 236
 context_guard_action: full_read
 skipped_bytes: 0
+sha256: 0189ee7585636555b633defb4602e08e27507a04afd2785adaa433a28fa41f5d
 
 # OpenHands sample fixture
 
@@ -56,6 +66,7 @@ safe-read guard must record bounded context behavior.
 size_bytes: 238
 context_guard_action: full_read
 skipped_bytes: 0
+sha256: c3770943f836bde1d738668530743d8eefa27bdbaca8bf198bcbf1ae0014d09f
 
 from openhands.core import AgentRuntime, plan_task
 

@@ -382,7 +382,7 @@ def call_ccr_for_live_turn(role: str, state: dict, prompt: str | None = None) ->
             "live_transport_unavailable",
         )
     api_key = os.environ.get("CCR_API_KEY", os.environ.get("ANTHROPIC_API_KEY", "local-router-token"))
-    max_tokens = int(os.environ.get("CCR_MAX_OUTPUT_TOKENS", "1024"))
+    max_tokens = int(os.environ.get("CCR_MAX_OUTPUT_TOKENS", "4096"))
     timeout_sec = int(os.environ.get("AI_COMPANY_LIVE_MEETING_TIMEOUT_SEC", os.environ.get("AI_COMPANY_CALL_TIMEOUT_SEC", "90")))
     payload = {
         "model": model,

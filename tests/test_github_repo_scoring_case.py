@@ -37,6 +37,10 @@ class GithubRepoScoringCaseTests(unittest.TestCase):
             context = json.loads((dest / "file_context_manifest.json").read_text(encoding="utf-8"))["files"]
             self.assertEqual(metadata["total_files"], len(inventory))
             self.assertEqual({item["path"] for item in inventory}, {item["path"] for item in context})
+            self.assertTrue(metadata["context_guard_action_counts"])
+            self.assertIn("no manual file allowlist", metadata["safe_read_policy"].lower())
+            self.assertTrue(all(item.get("sha256") for item in context))
+            self.assertIn("not a full raw repository prompt", (dest / "bounded_file_context.md").read_text(encoding="utf-8").lower())
             self.assertTrue((dest / "bounded_file_context.md").read_text(encoding="utf-8").strip())
 
     def test_verifier_accepts_complete_repo_scoring_package(self) -> None:
@@ -47,15 +51,17 @@ class GithubRepoScoringCaseTests(unittest.TestCase):
             output = root / "repo-score"
             output.mkdir()
             total = json.loads((root / "repo_metadata.json").read_text(encoding="utf-8"))["total_files"]
-            context_count = len(json.loads((root / "file_context_manifest.json").read_text(encoding="utf-8"))["files"])
+            context_payload = json.loads((root / "file_context_manifest.json").read_text(encoding="utf-8"))
+            context_count = len(context_payload["files"])
+            context_actions = sorted({item["context_guard_action"] for item in context_payload["files"]})
             (output / "file-coverage.json").write_text(
                 json.dumps(
                     {
-                        "all_files_considered": True,
+                        "all_files_considered": total,
                         "total_files": total,
                         "inventory_files": total,
                         "context_manifest_files": context_count,
-                        "context_guard_actions": ["full_read"],
+                        "context_guard_actions": {action: 1 for action in context_actions},
                     }
                 ),
                 encoding="utf-8",
@@ -79,6 +85,13 @@ class GithubRepoScoringCaseTests(unittest.TestCase):
             )
             (output / "improvement-plan.md").write_text("\n".join(f"{idx}. Improve area {idx}" for idx in range(1, 6)), encoding="utf-8")
             (output / "report.md").write_text("This report states limitations and safe-read token context guard evidence.", encoding="utf-8")
+            (root / "summary.md").write_text(
+                "- Coverage, scorecard, plan, and report were generated.\n"
+                "- Safe-read evidence covered every inventoried file through bounded metadata.\n"
+                "- Large files were bounded or skipped with explicit limitations.\n"
+                "Takeaway: Review the generated scoring package before acting.\n",
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [PYTHON, str(ROOT / "scripts" / "verify_github_repo_scoring_artifact.py"), str(root)],
                 cwd=ROOT,

@@ -230,6 +230,28 @@ GITHUB_REPO_SCORING_REF=main \
 bash scripts/run-github-repo-scoring-demo.sh live
 ```
 
+Normal live defaults are intentionally usable rather than ultra-conservative:
+
+```bash
+export CCR_MAX_OUTPUT_TOKENS="${CCR_MAX_OUTPUT_TOKENS:-4096}"
+export CLAUDE_CHILD_TIMEOUT_SEC="${CLAUDE_CHILD_TIMEOUT_SEC:-300}"
+export AI_COMPANY_LIVE_REQUEST_TIMEOUT_SEC="${AI_COMPANY_LIVE_REQUEST_TIMEOUT_SEC:-300}"
+export AI_COMPANY_MAX_PARALLEL_WORKERS="${AI_COMPANY_MAX_PARALLEL_WORKERS:-2}"
+```
+
+`CCR_MAX_OUTPUT_TOKENS` controls the maximum LLM response length for each
+worker call. It does not control how much repository input is read; input is
+bounded separately by the safe-read context guard.
+
+If the local model host is overloaded or intermittently refusing connections,
+drop to troubleshooting mode without editing the repo:
+
+```bash
+AI_COMPANY_MAX_PARALLEL_WORKERS=1 \
+AI_COMPANY_MAX_TOTAL_JOBS=5 \
+bash scripts/run-github-repo-scoring-demo.sh live
+```
+
 This case prepares an every-file repository inventory, `file_context_manifest`,
 bounded snippets, and inventory shards before dispatching the skill workflow.
 The agent scores architecture, maintainability, testing, documentation,
@@ -240,6 +262,10 @@ The important contract is coverage, not prompt stuffing: every file must appear
 in the inventory/context manifest, while large or unsupported files are handled
 through safe-read metadata, skipped bytes, and bounded chunks to avoid token
 overflow.
+
+The generated `summary.md` must be a clean user-readable artifact. Raw provider
+JSON envelopes, `chat.completion` payloads, or reasoning dumps are verifier
+failures and must be repaired before a live run is accepted.
 
 Dashboard verification:
 

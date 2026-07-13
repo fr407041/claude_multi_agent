@@ -173,6 +173,21 @@ def choose_worker_script(scripts_dir: Path, job: dict) -> Path:
     )
 
 
+def worker_kind_for_job(job: dict) -> str:
+    worker_template = str(job.get("worker_template", "")).strip().lower()
+    if worker_template == "summary_markdown":
+        return "summary"
+    if worker_template == "managed_single_file":
+        return "managed"
+    if worker_template == "managed_multi_file":
+        return "multi"
+    if worker_template in {"bounded_worker", "inspection_only"}:
+        return "generic"
+    raise RuntimeError(
+        f"SPEC_CONTRACT_INVALID: job {job.get('id', '<unknown>')} has unsupported or missing worker_template"
+    )
+
+
 def local_to_container_path(path: Path) -> str:
     try:
         relative = path.resolve().relative_to(ROOT.resolve())
@@ -182,7 +197,10 @@ def local_to_container_path(path: Path) -> str:
 
 
 def should_use_docker_workers() -> bool:
-    if os.environ.get("AI_COMPANY_USE_DOCKER_WORKERS", "").strip() == "1":
+    configured = os.environ.get("AI_COMPANY_USE_DOCKER_WORKERS", "").strip()
+    if configured == "0":
+        return False
+    if configured == "1":
         return True
     if os.name == "nt":
         return True
@@ -226,9 +244,13 @@ def run_worker_via_docker(run_dir: Path, worker_script: Path, job_path: Path) ->
         "-v",
         f"{ROOT}:/workspace",
         "-e",
+        f"AI_COMPANY_LIVE_WORKER_TRANSPORT={env.get('AI_COMPANY_LIVE_WORKER_TRANSPORT', '')}",
+        "-e",
         f"CCR_PREFERRED_MODEL={env.get('CCR_PREFERRED_MODEL', '')}",
         "-e",
-        f"CCR_MAX_OUTPUT_TOKENS={env.get('CCR_MAX_OUTPUT_TOKENS', '1024')}",
+        f"CCR_API_KEY={env.get('CCR_API_KEY', '')}",
+        "-e",
+        f"CCR_MAX_OUTPUT_TOKENS={env.get('CCR_MAX_OUTPUT_TOKENS', '4096')}",
         "-e",
         f"CLAUDE_MODEL_ALIAS={env.get('CLAUDE_MODEL_ALIAS', '')}",
         "-e",
@@ -834,8 +856,9 @@ def execute_job(run_dir: Path, scripts_dir: Path, job_path: Path) -> Path:
     if should_use_docker_workers():
         run_worker_via_docker(run_dir, worker_script, job_path)
     else:
-        bash_bin = which("bash") or "bash"
-        subprocess.run([bash_bin, str(worker_script), str(job_path)], cwd=run_dir, check=False)
+        worker_py = scripts_dir / "worker_claude_router.py"
+        python_bin = os.environ.get("AI_COMPANY_PYTHON_BIN", sys.executable).strip() or sys.executable
+        subprocess.run([python_bin, str(worker_py), str(job_path), worker_kind_for_job(job)], cwd=run_dir, check=False)
     return enrich_status_with_profile(job, ensure_status_file(job, status_path))
 
 

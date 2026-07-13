@@ -15,6 +15,7 @@ REQUIRED_OUTPUTS = [
     "repo-score/scorecard.json",
     "repo-score/improvement-plan.md",
     "repo-score/report.md",
+    "summary.md",
 ]
 REQUIRED_SCORE_CATEGORIES = {"architecture", "maintainability", "testing", "documentation", "security", "developer_experience"}
 
@@ -45,6 +46,38 @@ def improvement_count(text: str) -> int:
     return len(re.findall(r"(?m)^\s*(?:[-*]|\d+[.)])\s+", text))
 
 
+def has_raw_provider_envelope(text: str) -> bool:
+    stripped = text.lstrip()
+    if not stripped.startswith("{"):
+        return False
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return "choices" in payload and bool({"object", "model", "usage", "system_fingerprint"} & set(payload))
+
+
+def coverage_all_files_considered(value: Any, total_files: int) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value == total_files
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        return lowered in {"true", "yes", "all", "all_files", "all files considered"}
+    return False
+
+
+def coverage_action_set(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        return {str(key) for key in value if str(key)}
+    if isinstance(value, list):
+        return {str(item) for item in value if str(item)}
+    return set()
+
+
 def verify(root: Path) -> dict[str, Any]:
     root = root.resolve()
     metadata = read_json(root / "repo_metadata.json")
@@ -54,18 +87,23 @@ def verify(root: Path) -> dict[str, Any]:
     scorecard = read_json(root / "repo-score/scorecard.json")
     improvement = read_text(root / "repo-score/improvement-plan.md")
     report = read_text(root / "repo-score/report.md")
+    summary = read_text(root / "summary.md")
 
     inventory_files = inventory.get("files", []) if isinstance(inventory.get("files"), list) else []
     context_files = context.get("files", []) if isinstance(context.get("files"), list) else []
+    bounded_evidence = read_text(root / "bounded_file_context.md")
     inventory_paths = {str(item.get("path")) for item in inventory_files if isinstance(item, dict)}
     context_paths = {str(item.get("path")) for item in context_files if isinstance(item, dict)}
     total_files = int(metadata.get("total_files") or len(inventory_files))
     status_values = {str(item.get("status")) for item in context_files if isinstance(item, dict)}
     guard_actions = {str(item.get("context_guard_action")) for item in context_files if isinstance(item, dict)}
+    action_counts = metadata.get("context_guard_action_counts", {})
+    has_file_hashes = bool(context_files) and all(str(item.get("sha256", "")) for item in context_files if isinstance(item, dict) and item.get("status") != "missing")
 
     categories = scorecard.get("categories", {})
     category_keys = set(categories.keys()) if isinstance(categories, dict) else set()
     recommendations = scorecard.get("recommendations", [])
+    coverage_actions = coverage_action_set(coverage.get("context_guard_actions"))
 
     checks: list[dict[str, Any]] = [output_check(root, rel) for rel in REQUIRED_OUTPUTS]
     checks.extend(
@@ -86,17 +124,38 @@ def verify(root: Path) -> dict[str, Any]:
                 "detail": ", ".join(sorted(guard_actions)),
             },
             {
+                "label": "context manifest records file hashes",
+                "status": "pass" if has_file_hashes else "fail",
+                "detail": "sha256 required for auditable file decisions",
+            },
+            {
+                "label": "context guard action counts are recorded",
+                "status": "pass" if isinstance(action_counts, dict) and bool(action_counts) else "fail",
+                "detail": json.dumps(action_counts, ensure_ascii=False),
+            },
+            {
+                "label": "bounded evidence declares no full-repo prompt",
+                "status": "pass"
+                if "not a full raw repository prompt" in bounded_evidence.lower()
+                and "file_context_manifest.json" in bounded_evidence
+                else "fail",
+                "detail": "bounded evidence must disclose omitted/skipped/blocked/chunked bytes",
+            },
+            {
                 "label": "coverage artifact states every file was considered",
                 "status": "pass"
-                if coverage.get("all_files_considered") is True
+                if coverage_all_files_considered(coverage.get("all_files_considered"), total_files)
                 and int(coverage.get("total_files", -1)) == total_files
                 and int(coverage.get("context_manifest_files", -2)) == len(context_files)
+                and coverage_actions == guard_actions
                 else "fail",
                 "detail": json.dumps(
                     {
                         "coverage_total": coverage.get("total_files"),
                         "metadata_total": total_files,
                         "context_manifest_files": coverage.get("context_manifest_files"),
+                        "coverage_actions": coverage.get("context_guard_actions"),
+                        "manifest_actions": sorted(guard_actions),
                     },
                     ensure_ascii=False,
                 ),
@@ -125,6 +184,16 @@ def verify(root: Path) -> dict[str, Any]:
                 "label": "human report mentions limitations and token guard",
                 "status": "pass" if "limit" in report.lower() and re.search(r"token|context|safe-read|safe read", report, re.I) else "fail",
                 "detail": "report should not imply full raw repo was loaded into one prompt",
+            },
+            {
+                "label": "summary is clean user-readable artifact",
+                "status": "pass"
+                if summary.strip()
+                and not has_raw_provider_envelope(summary)
+                and "chat.completion" not in summary[:500].lower()
+                and "CONTENT_START" not in summary
+                else "fail",
+                "detail": "summary.md must not contain raw provider JSON, reasoning dumps, or wrapper markers",
             },
         ]
     )

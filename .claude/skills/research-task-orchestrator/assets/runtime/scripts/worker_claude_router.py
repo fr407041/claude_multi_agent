@@ -47,7 +47,7 @@ def call_ccr(prompt: str, timeout: int) -> tuple[int, str, dict[str, Any], str]:
     if not model:
         return 1, "STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: CLAUDE_MODEL_ALIAS or CCR_PREFERRED_MODEL is required for ccr_http worker transport\n", {}, "ccr_http"
     api_key = os.environ.get("CCR_API_KEY", os.environ.get("ANTHROPIC_API_KEY", "local-router-token"))
-    max_tokens = int(os.environ.get("CCR_MAX_OUTPUT_TOKENS", "1024"))
+    max_tokens = int(os.environ.get("CCR_MAX_OUTPUT_TOKENS", "4096"))
     payload = {
         "model": model,
         "max_tokens": max_tokens,
@@ -63,30 +63,51 @@ def call_ccr(prompt: str, timeout: int) -> tuple[int, str, dict[str, Any], str]:
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read().decode("utf-8", errors="ignore")
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        return 1, f"STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: HTTP {exc.code} from CCR\n\n{detail[:1200]}\n", {}, "ccr_http"
-    except TimeoutError:
-        return 124, "STATUS: CHILD_TIMEOUT\nFILES:\nTESTS: not-run\nSUMMARY: CCR request timed out\n", {}, "ccr_http"
-    except Exception as exc:
-        return 1, f"STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: {exc}\n", {}, "ccr_http"
+    retry_count = max(0, int(os.environ.get("AI_COMPANY_LIVE_RETRY_COUNT", "1")))
+    retry_sleep = max(0.0, float(os.environ.get("AI_COMPANY_LIVE_RETRY_SLEEP_SEC", "5")))
+    last_error = ""
+    body = ""
+    for attempt in range(retry_count + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
+            break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")
+            return 1, f"STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: HTTP {exc.code} from CCR\n\n{detail[:1200]}\n", {}, "ccr_http"
+        except TimeoutError:
+            last_error = "CCR request timed out"
+            if attempt >= retry_count:
+                return 124, "STATUS: CHILD_TIMEOUT\nFILES:\nTESTS: not-run\nSUMMARY: CCR request timed out after retries\n", {}, "ccr_http"
+        except Exception as exc:
+            last_error = str(exc)
+            if attempt >= retry_count:
+                return 1, f"STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: {last_error}\n", {}, "ccr_http"
+        if retry_sleep > 0:
+            time.sleep(retry_sleep)
     if not body.strip():
-        return 1, "STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: empty response from CCR\n", {}, "ccr_http"
+        return 1, f"STATUS: ROUTER_ERROR\nFILES:\nTESTS: not-run\nSUMMARY: empty response from CCR after retries; last_error={last_error}\n", {}, "ccr_http"
     try:
         parsed = json.loads(body)
     except json.JSONDecodeError:
         return 0, body, {}, "ccr_http"
     usage = parsed.get("usage") if isinstance(parsed.get("usage"), dict) else {}
     if isinstance(parsed.get("content"), list):
-        text = "\n".join(str(item.get("text", "")) for item in parsed["content"] if isinstance(item, dict))
-        return 0, text or body, usage, "ccr_http"
+        text = "\n".join(str(item.get("text", "")) for item in parsed["content"] if isinstance(item, dict)).strip()
+        if text:
+            return 0, text, usage, "ccr_http"
     if isinstance(parsed.get("choices"), list) and parsed["choices"]:
-        message = parsed["choices"][0].get("message", {})
-        return 0, str(message.get("content") or parsed["choices"][0].get("text") or body), usage, "ccr_http"
-    return 0, body, usage, "ccr_http"
+        choice = parsed["choices"][0]
+        message = choice.get("message", {}) if isinstance(choice, dict) else {}
+        content = str(message.get("content") or choice.get("text") or "").strip()
+        if content:
+            return 0, content, usage, "ccr_http"
+        for key in ["reasoning", "reasoning_content", "thinking"]:
+            reasoning = str(message.get(key) or choice.get(key) or "").strip()
+            if "CONTENT_START" in reasoning:
+                return 0, reasoning, usage, "ccr_http"
+        return 1, "STATUS: FAILED\nFILES:\nTESTS: not-run\nSUMMARY: CCR response did not contain artifact content; raw provider envelope was not written\n", usage, "ccr_http"
+    return 1, "STATUS: FAILED\nFILES:\nTESTS: not-run\nSUMMARY: CCR response did not contain a supported artifact message shape; raw provider envelope was not written\n", usage, "ccr_http"
 
 
 def call_claude_cli(prompt: str, timeout: int) -> tuple[int, str, dict[str, Any], str]:
@@ -206,6 +227,37 @@ def extract_summary_content(raw: str) -> str:
     return (cleaned or text) + "\n"
 
 
+def normalize_managed_artifact_content(raw: str, target_path: str) -> str:
+    content = extract_summary_content(raw)
+    if Path(target_path).suffix.lower() != ".json":
+        return content
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        return content
+    if isinstance(payload, dict) and isinstance(payload.get("artifact"), dict):
+        metadata_keys = {"summary", "key_claims", "confidence", "limitations", "artifact"}
+        if "artifact" in payload and (set(payload).issubset(metadata_keys) or "total_files" not in payload):
+            payload = payload["artifact"]
+    if isinstance(payload, dict):
+        return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    return content
+
+
+def looks_like_provider_envelope_artifact(content: str) -> bool:
+    text = content.lstrip()
+    if not text.startswith("{"):
+        return False
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    provider_keys = {"choices", "object", "model", "usage", "system_fingerprint"}
+    return "choices" in payload and bool(provider_keys & set(payload))
+
+
 def extract_multi_artifacts(raw: str, expected_paths: list[str]) -> dict[str, str]:
     match = re.search(r"ARTIFACTS_JSON_START\s*(.*?)\s*ARTIFACTS_JSON_END", raw, flags=re.S)
     if not match:
@@ -314,7 +366,7 @@ Do not claim that you wrote a file. The wrapper writes files after validating th
         suffix = Path(target).suffix.lower()
         format_rule = "Return concise UTF-8 text."
         if suffix == ".json":
-            format_rule = "Return one valid JSON object only. Do not use markdown fences. Include concrete evidence fields and no comments."
+            format_rule = "Return the target artifact as one valid top-level JSON object only. Do not wrap it in summary/artifact/key_claims metadata. Do not use markdown fences. Include concrete evidence fields and no comments."
         elif suffix in {".py", ".js", ".sh"}:
             format_rule = "Return executable source code only. Do not use markdown fences or explanations."
         elif suffix in {".md", ".txt"}:
@@ -461,7 +513,14 @@ def main() -> int:
             target = scope / ".blocked-output"
         target.parent.mkdir(parents=True, exist_ok=True)
         if status == "SUCCESS":
-            target.write_text(extract_summary_content(raw), encoding="utf-8")
+            try:
+                content = normalize_managed_artifact_content(raw, files[0])
+                if looks_like_provider_envelope_artifact(content):
+                    raise ValueError("model artifact content is a raw provider envelope")
+                target.write_text(content, encoding="utf-8")
+            except ValueError as exc:
+                status = "FAILED"
+                failed_reason = f"managed artifact contract failed: {exc}"
     if status == "SUCCESS" and worker_kind == "multi":
         try:
             artifacts = extract_multi_artifacts(raw, files)

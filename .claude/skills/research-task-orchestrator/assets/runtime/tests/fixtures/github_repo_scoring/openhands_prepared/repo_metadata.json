@@ -1,6 +1,6 @@
 {
   "schema_version": "github-repo-scoring-input.v1",
-  "prepared_at_utc": "2026-07-13T12:20:49.315315+00:00",
+  "prepared_at_utc": "2026-07-13T14:17:28.553393+00:00",
   "target_repo": "openhands/openhands",
   "target_ref": "",
   "source": {
@@ -8,11 +8,20 @@
     "source_dir": "D:\\codex專案\\20260711_multi_agent\\tests\\fixtures\\github_repo_scoring\\sample_source"
   },
   "total_files": 5,
+  "inventory_files": 5,
+  "context_manifest_files": 5,
   "context_status_counts": {
     "ok": 5
   },
+  "context_guard_action_counts": {
+    "full_read": 5
+  },
+  "bounded_evidence_token_budget": 12000,
+  "bounded_evidence_estimated_tokens": 275,
+  "bounded_evidence_budget_exhausted": false,
+  "skipped_bytes": 0,
   "inventory_shards": [
     "inventory_shards/shard-000.json"
   ],
-  "safe_read_policy": "Every file is inventoried. Text-like files are read through safe_file_context; binary/unsupported files are recorded as skipped."
+  "safe_read_policy": "Every file is inventoried and evaluated by the same deterministic safe_file_context policy. No manual file allowlist, denylist, extension list, or hand-selected split plan is used."
 }

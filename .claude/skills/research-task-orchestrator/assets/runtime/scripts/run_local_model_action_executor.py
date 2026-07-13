@@ -22,9 +22,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from agent_token_ledger import build_agent_token_ledger, token_usage_from_text
-from safe_file_context import safe_read_file
-from verify_agent_micro_gate import VALID_GATES, verify_gate
+try:
+    from agent_token_ledger import build_agent_token_ledger, token_usage_from_text
+    from safe_file_context import safe_read_file
+    from verify_agent_micro_gate import VALID_GATES, verify_gate
+except ModuleNotFoundError:  # pragma: no cover - package import path
+    from scripts.agent_token_ledger import build_agent_token_ledger, token_usage_from_text
+    from scripts.safe_file_context import safe_read_file
+    from scripts.verify_agent_micro_gate import VALID_GATES, verify_gate
 
 
 ROOT = Path(__file__).resolve().parents[1]

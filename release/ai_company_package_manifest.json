@@ -8,7 +8,7 @@
     },
     {
       "path": "scripts/package_contract.py",
-      "sha256": "b866947a141e82253a6f1648302d0284873fb764b989b5d40caf0032f0b95801"
+      "sha256": "7ad6d07e82cd2de93ca5754e98ee0c908a46b978d51a1b1592b7a8926d56a1a6"
     },
     {
       "path": "scripts/task_contract.py",
@@ -28,7 +28,7 @@
     },
     {
       "path": "scripts/run_ai_company_task_harness.py",
-      "sha256": "425a7e2a3e27c4cad9545d02c382443c0b2b832668ac82fc435f397d739e124e"
+      "sha256": "0f782b19a8f70b68caaca7d4d834835d638c60d15e5af93b2aad5ed951a6b9e4"
     },
     {
       "path": "scripts/materialize_ai_company_task_run.py",
@@ -36,11 +36,11 @@
     },
     {
       "path": "scripts/run_ai_company_meeting.py",
-      "sha256": "6cf78f9eb41ec282ef96473c3aa29a355130375c7499dd85e334fd5f9252b5f9"
+      "sha256": "676cd5f7c4fba96a1f3f391939a9127659f881dd82a90d49dc4faa5cffece7de"
     },
     {
       "path": "scripts/run_ai_company_execution.py",
-      "sha256": "49c958ce04ba2a357b6e4e1285ec7bc750f430011a9207135f55a5c6bcc7a56d"
+      "sha256": "0423257c0fc0f43fd116a2da1ba063b1eb0422368db834e80bcea32334f20d5c"
     },
     {
       "path": "scripts/run_ai_company_reviewer_worker.py",
@@ -68,7 +68,7 @@
     },
     {
       "path": "scripts/bounded_context_loader.py",
-      "sha256": "482521e4f4739e9d99098a1cb5d39637716f6280661e6ec6a74d22fbf819a692"
+      "sha256": "d37de0b2fefcfe31904ee0a97babea8793ac2508f9ce7a6b920d6c1755759c9b"
     },
     {
       "path": "scripts/safe_file_context.py",
@@ -76,7 +76,7 @@
     },
     {
       "path": "scripts/run_local_model_action_executor.py",
-      "sha256": "8abac785f951f82766e95c5a24c7385f8afdeb8987de19c0559db4b13c9e4edd"
+      "sha256": "f909b8c95764482a133765265955a87461338b2001408b2c6ba60892abae11a2"
     },
     {
       "path": "scripts/probe_provider_diagnostic.py",
@@ -112,7 +112,7 @@
     },
     {
       "path": "scripts/prepare_github_repo_scoring_case.py",
-      "sha256": "6a32c2518d4face2a6f59159ed90fff6381c2045dc38f41b438227c0fba3badc"
+      "sha256": "ad385748921e58271c505fee7570608ca7e4b00e42460ef4c41bc554ca0d1e06"
     },
     {
       "path": "scripts/prepare_common_research_case.py",
@@ -120,7 +120,7 @@
     },
     {
       "path": "scripts/verify_github_repo_scoring_artifact.py",
-      "sha256": "324cf77790925bb11942112a2812000db4e145aa9a7d2b4b8ff10cf49091a4eb"
+      "sha256": "89ef7f8deaa8c5ca6c1b6ae04a02487a315716645ca4cf77217b7c7887c31140"
     },
     {
       "path": "scripts/verify_common_research_artifact.py",
@@ -136,23 +136,23 @@
     },
     {
       "path": "scripts/worker_claude_router.py",
-      "sha256": "18ea665ff9e9188459a6d88a68f09d3da3a4e42204b006ce17c7f324f11b2758"
+      "sha256": "c4918025b6ffde62c90d0cbfa5a892bd549a61ad84a9c9d3e686a5ec177bc3ee"
     },
     {
       "path": "scripts/worker_claude_router.sh",
-      "sha256": "91a83846ba616936c09205f1b4dd4031418c582ed512239472ce99e9fe81ffbc"
+      "sha256": "9eae342a0cb3cf828282c7f134b2f47cc740b15184e52a5bd8aa804f7ef84db2"
     },
     {
       "path": "scripts/worker_claude_router_summary_template.sh",
-      "sha256": "1a69acc591567c4a8effc549741f5bb371cd0c1c3244ea18681088330ace376b"
+      "sha256": "188b1cbaf57a298c0ba3906752fdd662676ec46740f258ca7e9098a6ca93981d"
     },
     {
       "path": "scripts/worker_claude_router_managed_single_file.sh",
-      "sha256": "72be91bbf77872b97c8959b91428d4cdc693178af06d19f1bb2ecf3fb8489c18"
+      "sha256": "fb49346ea3c13082f250959b51fbdb29e72861ab59326dd4b6d64ad19a60ce76"
     },
     {
       "path": "scripts/worker_claude_router_managed_multi_file.sh",
-      "sha256": "04720fc37b6e8648d425a5560da5dd97b7931be60f77498a5d775e2e89194d19"
+      "sha256": "0aae44c9d6072ff8193d5188b92864cc5de1f76fd20c93825ba8844dd5debb6e"
     },
     {
       "path": "configs/ai_company/agent_profiles.json",
@@ -160,11 +160,47 @@
     },
     {
       "path": "configs/ai_company/task_harness.defaults.json",
-      "sha256": "a0d45b537761787e9406b889c14f865afb8741a00e2a7711bce1fb28bfb9bcb1"
+      "sha256": "29738d085594b5b743df901597e8f1da23cfc83f5313d7235190d595bec2589c"
     },
     {
       "path": "configs/ai_company/task_assignment.schema.json",
       "sha256": "664662ccf0f3f80f21a62a44a81cd99a22d19aec4bebcedda73b3056ea5a4e5a"
+    },
+    {
+      "path": "configs/cim_capabilities/artifact_reviewer.json",
+      "sha256": "66a4d923f330c5b651d66e5a7d5510fa19b7dd7d637b8b56a3f5e16808c1b319"
+    },
+    {
+      "path": "configs/cim_capabilities/decision_maker.json",
+      "sha256": "45d777d07d90c13777ed574855e146e627736f833f72bc473863aec845cddde0"
+    },
+    {
+      "path": "configs/cim_capabilities/project_builder.json",
+      "sha256": "012935fdef81a45d8da93d7627149d5b2764e2c2dc5421a415387d787ab52d0f"
+    },
+    {
+      "path": "configs/cim_capabilities/readonly_research.json",
+      "sha256": "b67da2288048bebcc3e64992df9715e617a70b0f422dd079245f3da4803973f4"
+    },
+    {
+      "path": "configs/cim_roles/builder.json",
+      "sha256": "2378ea442398ee24dd1d41a02e016c54954a7da6517b78c750cadd5a8ee44660"
+    },
+    {
+      "path": "configs/cim_roles/decision_maker.json",
+      "sha256": "dd7fb6321a4d25fb46c93b9c83ca4f668c8974ae62bf59d119e60ff8f98fa3be"
+    },
+    {
+      "path": "configs/cim_roles/planner.json",
+      "sha256": "4081fd2beb799b6f6e588201ab8b832d2e981f3d968a1c01213e94a940ad8869"
+    },
+    {
+      "path": "configs/cim_roles/researcher.json",
+      "sha256": "d0056d6809c8d889e011837cbc4f771184d2a9762130de11137c5324a1f20460"
+    },
+    {
+      "path": "configs/cim_roles/reviewer.json",
+      "sha256": "9501e7647cf1036a76068184cfb80384c5dc835dbf3a636a399c0363ca1e5293"
     },
     {
       "path": "docs/ai_specs/ai-company-release-readiness-strict-demo.json",
@@ -188,27 +224,131 @@
     },
     {
       "path": "docs/ai_specs/github-repo-scoring-demo.json",
-      "sha256": "6db59132ac85548cba414ef7b5c9e443e9bf8b30871b21f188c87bf35d1e89f5"
+      "sha256": "0aa55914f27c495113d58b840f96ed40c82391328c54ed505b24ea21204e63f1"
+    },
+    {
+      "path": "docs/GETTING_STARTED.zh-TW.md",
+      "sha256": "33842b57b200f2bf3f84ccd097512dbbe47001059b09a4696e279c729c0e09c8"
+    },
+    {
+      "path": "fab_agents/examples/fab_artifact_reviewer/agent.json",
+      "sha256": "f7219b6978e7be4518d0c76b7d86d00997aa2232708ab54b9ed89c3ae16fcc7a"
+    },
+    {
+      "path": "fab_agents/examples/fab_artifact_reviewer/background.md",
+      "sha256": "fb1ed1eadd6bb5f64902bfc1387835c5cb64d7b20cd76b38612ff7b8ba5800aa"
+    },
+    {
+      "path": "fab_agents/examples/fab_frontend_builder/agent.json",
+      "sha256": "20fadc37156ac0a35602fe23523292e4c775232029158c28519e38af44d5a7f1"
+    },
+    {
+      "path": "fab_agents/examples/fab_frontend_builder/background.md",
+      "sha256": "e237a0a1581c8185ac409404a9e74f8d03441135b5f60b74badf0a2ab930ae98"
+    },
+    {
+      "path": "fab_agents/examples/fab_product_planner/agent.json",
+      "sha256": "715a897c7b0389d8eb7b5ee044145d8940d9fc055e4bb72a65d6f44ea0c1a3f3"
+    },
+    {
+      "path": "fab_agents/examples/fab_product_planner/background.md",
+      "sha256": "71ff62469dc83fe3c8c73d2dcd0dedc820d95d97898e1652b863e9b7ce365330"
+    },
+    {
+      "path": "fab_agents/templates/builder.role-card.yaml",
+      "sha256": "48e6985e30b9ab15d836c53d32a6d2cfc3b7904007c883d990a278372658bbec"
+    },
+    {
+      "path": "fab_agents/templates/decision-maker.role-card.yaml",
+      "sha256": "298e1bc80b92abbdbde628f2efb25436491284a7f395dc203a0103cd7d3bbeb8"
+    },
+    {
+      "path": "fab_agents/templates/planner.role-card.yaml",
+      "sha256": "160ed28fe2235e001d31ef89d2f7899ccb123b9d3bd03ba4f9c57152824144ce"
+    },
+    {
+      "path": "fab_agents/templates/researcher.role-card.yaml",
+      "sha256": "b8e85c7a3e8cfc6cd43fe067f8eb73a6fb6afe3dd2bbdc38153c76926698111c"
+    },
+    {
+      "path": "fab_agents/templates/reviewer.role-card.yaml",
+      "sha256": "9b244c2bfda6c9bdb1a5307acb1254600498e82a38633f22e91c7e523fb2dcb1"
+    },
+    {
+      "path": "scripts/create_fab_agent.py",
+      "sha256": "2a17d2c57df4935470c341dc051b0e3cf89943fc4f6acb40fd1f937aa0e7e523"
+    },
+    {
+      "path": "scripts/create_role_card.py",
+      "sha256": "9e4a5eb8caeef5c7d038fc6ac0f97596761683c0c66434918789efc88b5d0b87"
+    },
+    {
+      "path": "scripts/fab_agent_policy.py",
+      "sha256": "98aaee1d477e3288c91e1b8fdc71dae5229ad882dc8fd66a287b20d4c215e1c4"
+    },
+    {
+      "path": "scripts/list_cim_capabilities.py",
+      "sha256": "b27360640366bea4bcf28852fd3cb4d65d8e8689f33fc70ee38d761d302952c8"
+    },
+    {
+      "path": "scripts/list_roles.py",
+      "sha256": "ba6ee124659f08a1e3b6d08018cb52d84a2976a6ad1e95902b7a570970ac56e1"
+    },
+    {
+      "path": "scripts/resolve_fab_agent.py",
+      "sha256": "3a0b69cf29a7f9c70612a8d8d2ced496616b82a0ef64725ca6802a2bf50d7cd0"
+    },
+    {
+      "path": "scripts/resolve_role_card.py",
+      "sha256": "ac90126a5ce8f122c766d20d0137253552e253ab3d66ea83d56c21c14f44a94b"
+    },
+    {
+      "path": "scripts/role_card_policy.py",
+      "sha256": "991e224d86f13be179ff7567c762c19c10d6144f31cc6c88bfc155b48d70fc35"
+    },
+    {
+      "path": "scripts/run_fab_agent_poc.py",
+      "sha256": "1cd471e047c9a662a404fc8a40adc6d7e40f174c01bfe0ed3f6e375dc3572a9b"
+    },
+    {
+      "path": "scripts/validate_fab_agent.py",
+      "sha256": "fcc93d4b29603f231d38de169616a1fca659c6579a3444dacc90f46a433995c1"
+    },
+    {
+      "path": "scripts/validate_role_card.py",
+      "sha256": "1568b181a5d164382f64e9d30fa0622c4360476aef8bcad099a4580c442d363a"
+    },
+    {
+      "path": "tests/test_fab_agent_poc.py",
+      "sha256": "e9b869c7ff5bf522f9c9c2ea8df3070ab2e3e7f48132e030e996edbf0a32c9c5"
+    },
+    {
+      "path": "tests/test_fab_agent_policy.py",
+      "sha256": "673a229e037935bc6db49e39f03537a0e4e0382af2c4c4b02206f3e40f86e9a3"
+    },
+    {
+      "path": "tests/test_role_card_policy.py",
+      "sha256": "c3a419bca90b83e87e9deed37420e4777fa24343f3fe652497df5c56c6fb889e"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repo_metadata.json",
-      "sha256": "e220af7201b99d392ec648503190824f2fa8969daceb7b91c06069c921452414"
+      "sha256": "427cfe80322ebd6dc400e60f9cc744aaa6bd3981d80e3cda2d831fcfdb20063a"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repository_inventory.json",
-      "sha256": "947e29313fa73c628ba675e8d782ac84555702e65f814e6ac7d85de47319cd6e"
+      "sha256": "cfaf3fe913d695885a6d057470627b4923831dc3c30720e9640dbbf08b19acae"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/file_context_manifest.json",
-      "sha256": "5d482c523516ff2db149e2fe83d8a30797b71dede331df5fba9f0c23ed1cb41e"
+      "sha256": "decea35145be50e15ca9179625432a5d093c70c5a06130f4c744bb588f7f6c67"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/bounded_file_context.md",
-      "sha256": "5dc2e27ed6973cb407fc70d6dbf5c0107339a9fd0164992810246643c243bc25"
+      "sha256": "c4360b07ad6f6b229115d42cfabd5951adcdadf4d139e06b9633c715ecd60fd1"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/inventory_shards/shard-000.json",
-      "sha256": "947e29313fa73c628ba675e8d782ac84555702e65f814e6ac7d85de47319cd6e"
+      "sha256": "cfaf3fe913d695885a6d057470627b4923831dc3c30720e9640dbbf08b19acae"
     },
     {
       "path": "tests/fixtures/ai_company_release_readiness_demo/release_brief.md",

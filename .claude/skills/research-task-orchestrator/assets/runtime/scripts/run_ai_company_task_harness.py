@@ -590,7 +590,7 @@ def main() -> None:
         env.setdefault("CLAUDE_MODEL_ALIAS", str(defaults.get("claude_model_alias")))
     if defaults.get("live_model"):
         env.setdefault("CCR_PREFERRED_MODEL", str(defaults.get("live_model")))
-    env.setdefault("CCR_MAX_OUTPUT_TOKENS", str(defaults.get("router_max_output_tokens", 1024)))
+    env.setdefault("CCR_MAX_OUTPUT_TOKENS", str(defaults.get("router_max_output_tokens", 4096)))
     env.setdefault("AI_COMPANY_MEETING_MODE", str(defaults.get("meeting_mode", "deterministic")))
     env.setdefault("CLAUDE_TOOLS_VALUE", str(defaults.get("claude_tools_value", "")))
     if DEFAULT_CLAUDE_CHILD_SETTINGS_PATH.exists():

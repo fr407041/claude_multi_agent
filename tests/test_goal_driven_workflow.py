@@ -6,6 +6,7 @@ import unittest
 import os
 import subprocess
 import sys
+import urllib.error
 from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
@@ -16,7 +17,13 @@ from scripts.materialize_ai_company_task_run import materialize_run
 from scripts.run_ai_company_task_harness import run_post_verify_if_needed
 from scripts.run_ai_company_reviewer_worker import verify_summary_artifact
 from scripts.validate_ai_company_spec import validate_spec
-from scripts.worker_claude_router import build_prompt_details, extract_multi_artifacts
+from scripts.worker_claude_router import (
+    build_prompt_details,
+    call_ccr,
+    extract_multi_artifacts,
+    looks_like_provider_envelope_artifact,
+    normalize_managed_artifact_content,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,6 +50,84 @@ class GoalDrivenWorkflowTests(unittest.TestCase):
             ["analysis.json", "claims.txt"],
         )
         self.assertEqual(set(parsed), {"analysis.json", "claims.txt"})
+
+    def test_managed_json_artifact_unwraps_common_model_wrapper(self) -> None:
+        raw = """CONTENT_START
+{"summary":"created","artifact":{"total_files":10,"inventory_files":10,"context_manifest_files":10,"all_files_considered":true},"limitations":[]}
+CONTENT_END"""
+        normalized = json.loads(normalize_managed_artifact_content(raw, "repo-score/file-coverage.json"))
+        self.assertEqual(normalized["total_files"], 10)
+        self.assertNotIn("artifact", normalized)
+
+    def test_ccr_uses_reasoning_artifact_when_content_is_empty(self) -> None:
+        response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning": "internal\nCONTENT_START\n- clean artifact\nTakeaway: ok\nCONTENT_END",
+                    }
+                }
+            ],
+            "usage": {"total_tokens": 10},
+        }
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                return False
+            def read(self):
+                return json.dumps(response).encode("utf-8")
+        with patch("scripts.worker_claude_router.urllib.request.urlopen", return_value=FakeResponse()), patch.dict(
+            os.environ, {"CCR_PREFERRED_MODEL": "gpt-oss:20b"}
+        ):
+            exit_code, raw, usage, _ = call_ccr("prompt", 1)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("CONTENT_START", raw)
+        self.assertEqual(usage["total_tokens"], 10)
+
+    def test_ccr_rejects_empty_content_without_artifact_reasoning(self) -> None:
+        response = {"choices": [{"message": {"role": "assistant", "content": "", "reasoning": "thought only"}}]}
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                return False
+            def read(self):
+                return json.dumps(response).encode("utf-8")
+        with patch("scripts.worker_claude_router.urllib.request.urlopen", return_value=FakeResponse()), patch.dict(
+            os.environ, {"CCR_PREFERRED_MODEL": "gpt-oss:20b"}
+        ):
+            exit_code, raw, _, _ = call_ccr("prompt", 1)
+        self.assertEqual(exit_code, 1)
+        self.assertIn("raw provider envelope was not written", raw)
+
+    def test_ccr_retries_transient_url_error(self) -> None:
+        response = {"choices": [{"message": {"role": "assistant", "content": "CONTENT_START\nok\nCONTENT_END"}}]}
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                return False
+            def read(self):
+                return json.dumps(response).encode("utf-8")
+        calls = [urllib.error.URLError("temporary socket exhaustion"), FakeResponse()]
+        def fake_urlopen(*_args, **_kwargs):
+            item = calls.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        with patch("scripts.worker_claude_router.urllib.request.urlopen", side_effect=fake_urlopen), patch.dict(
+            os.environ, {"CCR_PREFERRED_MODEL": "gpt-oss:20b", "AI_COMPANY_LIVE_RETRY_COUNT": "1", "AI_COMPANY_LIVE_RETRY_SLEEP_SEC": "0"}
+        ):
+            exit_code, raw, _, _ = call_ccr("prompt", 1)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("CONTENT_START", raw)
+
+    def test_provider_envelope_artifact_is_detected(self) -> None:
+        content = json.dumps({"id": "x", "object": "chat.completion", "model": "gpt-oss:20b", "choices": []})
+        self.assertTrue(looks_like_provider_envelope_artifact(content))
 
     def test_live_planner_repairs_invalid_dag_within_budget(self) -> None:
         invalid = '{"jobs":[{"id":"a","capability":"acquire","outputs":["evidence.json"],"tools":["network"],"acceptance_criteria":[{"type":"json_valid","path":"evidence.json"}]}]}'

@@ -16,26 +16,8 @@ from safe_file_context import safe_read_file
 
 
 DEFAULT_REPO = "openhands/openhands"
-SKIP_DIRS = {".git", ".hg", ".svn", "node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
-TEXT_SUFFIXES = {
-    ".cfg",
-    ".css",
-    ".dockerfile",
-    ".html",
-    ".ini",
-    ".js",
-    ".json",
-    ".md",
-    ".py",
-    ".rst",
-    ".sh",
-    ".toml",
-    ".ts",
-    ".tsx",
-    ".txt",
-    ".yaml",
-    ".yml",
-}
+BOUNDED_EVIDENCE_TOKEN_BUDGET = 12000
+MAX_SNIPPET_CHARS_PER_FILE = 6000
 
 
 def sha256_file(path: Path) -> str:
@@ -44,19 +26,6 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def is_binary_sample(path: Path) -> bool:
-    try:
-        sample = path.read_bytes()[:4096]
-    except OSError:
-        return True
-    return b"\0" in sample
-
-
-def should_skip(path: Path, source_root: Path) -> bool:
-    rel_parts = path.relative_to(source_root).parts
-    return any(part in SKIP_DIRS for part in rel_parts)
 
 
 def download_github_archive(repo: str, ref: str, dest: Path, max_bytes: int) -> dict[str, Any]:
@@ -108,41 +77,39 @@ def build_case(source_root: Path, dest: Path, source_meta: dict[str, Any], *, sh
     copied_source = dest / "source"
     copied_source.mkdir()
 
+    bounded_tokens_used = 0
+    bounded_budget_exhausted = False
+
     for path in sorted(source_root.rglob("*")):
-        if not path.is_file() or should_skip(path, source_root):
+        if not path.is_file():
             continue
         rel = path.relative_to(source_root).as_posix()
         size = path.stat().st_size
-        binary = is_binary_sample(path)
-        suffix = path.suffix.lower()
-        include_text = (not binary) and (suffix in TEXT_SUFFIXES or size < 8192)
         target = copied_source / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
+        safe = safe_read_file(copied_source, rel)
         item = {
             "path": rel,
             "size_bytes": size,
             "sha256": sha256_file(path),
             "language": language_for(path),
-            "binary": binary,
-            "included_for_context": include_text,
+            "safe_read_status": safe.get("status", "unknown"),
+            "context_guard_action": safe.get("context_guard_action", "unknown"),
+            "included_for_context": safe.get("status") == "ok",
         }
         inventory.append(item)
-        if include_text:
-            safe = safe_read_file(copied_source, rel)
-        else:
-            safe = {
-                "path": rel,
-                "status": "binary_or_unsupported",
-                "size_bytes": size,
-                "skipped_bytes": size,
-                "context_guard_action": "blocked",
-            }
-        context_manifest.append({key: value for key, value in safe.items() if key not in {"absolute_path", "chunks"}})
-        if safe.get("status") == "ok":
+        context_manifest.append({key: value for key, value in safe.items() if key not in {"absolute_path", "chunks", "text"}})
+        if safe.get("status") == "ok" and not bounded_budget_exhausted:
             text_payload = safe_read_file(copied_source, rel, include_text=True)
             snippet = str(text_payload.get("text", "")).strip()
             if snippet:
+                snippet = snippet[:MAX_SNIPPET_CHARS_PER_FILE]
+                snippet_tokens = max(1, len(snippet) // 4)
+                if bounded_tokens_used + snippet_tokens > BOUNDED_EVIDENCE_TOKEN_BUDGET:
+                    bounded_budget_exhausted = True
+                    continue
+                bounded_tokens_used += snippet_tokens
                 bounded_blocks.append(
                     "\n".join(
                         [
@@ -150,8 +117,9 @@ def build_case(source_root: Path, dest: Path, source_meta: dict[str, Any], *, sh
                             f"size_bytes: {size}",
                             f"context_guard_action: {safe.get('context_guard_action')}",
                             f"skipped_bytes: {safe.get('skipped_bytes', 0)}",
+                            f"sha256: {item['sha256']}",
                             "",
-                            snippet[:6000],
+                            snippet,
                         ]
                     )
                 )
@@ -164,9 +132,14 @@ def build_case(source_root: Path, dest: Path, source_meta: dict[str, Any], *, sh
         shard_paths.append(shard_path.relative_to(dest).as_posix())
 
     status_counts: dict[str, int] = {}
+    action_counts: dict[str, int] = {}
+    skipped_bytes = 0
     for item in context_manifest:
         status = str(item.get("status", "unknown"))
         status_counts[status] = status_counts.get(status, 0) + 1
+        action = str(item.get("context_guard_action", "unknown"))
+        action_counts[action] = action_counts.get(action, 0) + 1
+        skipped_bytes += int(item.get("skipped_bytes", 0) or 0)
     repo_metadata = {
         "schema_version": "github-repo-scoring-input.v1",
         "prepared_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -174,14 +147,32 @@ def build_case(source_root: Path, dest: Path, source_meta: dict[str, Any], *, sh
         "target_ref": source_meta.get("ref", ""),
         "source": source_meta,
         "total_files": len(inventory),
+        "inventory_files": len(inventory),
+        "context_manifest_files": len(context_manifest),
         "context_status_counts": status_counts,
+        "context_guard_action_counts": action_counts,
+        "bounded_evidence_token_budget": BOUNDED_EVIDENCE_TOKEN_BUDGET,
+        "bounded_evidence_estimated_tokens": bounded_tokens_used,
+        "bounded_evidence_budget_exhausted": bounded_budget_exhausted,
+        "skipped_bytes": skipped_bytes,
         "inventory_shards": shard_paths,
-        "safe_read_policy": "Every file is inventoried. Text-like files are read through safe_file_context; binary/unsupported files are recorded as skipped.",
+        "safe_read_policy": "Every file is inventoried and evaluated by the same deterministic safe_file_context policy. No manual file allowlist, denylist, extension list, or hand-selected split plan is used.",
     }
     (dest / "repo_metadata.json").write_text(json.dumps(repo_metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     (dest / "repository_inventory.json").write_text(json.dumps({"files": inventory}, ensure_ascii=False, indent=2), encoding="utf-8")
     (dest / "file_context_manifest.json").write_text(json.dumps({"files": context_manifest}, ensure_ascii=False, indent=2), encoding="utf-8")
-    (dest / "bounded_file_context.md").write_text("\n\n".join(bounded_blocks) + "\n", encoding="utf-8")
+    evidence_header = "\n".join(
+        [
+            "# Bounded repository evidence",
+            "",
+            "This evidence is generated automatically from the file context guard.",
+            "It is not a full raw repository prompt. Omitted, skipped, blocked, and chunked bytes are recorded in file_context_manifest.json.",
+            f"Estimated evidence tokens: {bounded_tokens_used}",
+            f"Evidence token budget: {BOUNDED_EVIDENCE_TOKEN_BUDGET}",
+            "",
+        ]
+    )
+    (dest / "bounded_file_context.md").write_text(evidence_header + "\n\n".join(bounded_blocks) + "\n", encoding="utf-8")
     return repo_metadata
 
 
