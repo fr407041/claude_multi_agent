@@ -123,9 +123,30 @@ def resolve_fab_agent(agent_dir: Path, output_dir: Path, capabilities: dict[str,
     agent_out.mkdir(parents=True, exist_ok=True)
     mounted_skills = agent_out / "mounted-skills"
     mounted_skills.mkdir(exist_ok=True)
+    skill_mounts = []
+    for skill_name in capability.get("allowed_skills", []):
+        source_path = ROOT / ".claude" / "skills" / str(skill_name)
+        skill_mounts.append(
+            {
+                "name": str(skill_name),
+                "source_path": str(source_path),
+                "exists": source_path.is_dir(),
+                "mount_path": str(mounted_skills / str(skill_name)),
+                "managed_by": "CIM",
+            }
+        )
     (mounted_skills / "README.md").write_text(
         "This directory is a POC marker. Runtime must mount only CIM-approved skills here.\n",
         encoding="utf-8",
+    )
+    write_json(
+        mounted_skills / "approved-skills.json",
+        {
+            "schema_version": "cim-approved-skills.v1",
+            "agent_id": agent_id,
+            "capability": capability["id"],
+            "skills": skill_mounts,
+        },
     )
 
     effective = {
@@ -143,6 +164,7 @@ def resolve_fab_agent(agent_dir: Path, output_dir: Path, capabilities: dict[str,
         "policy_source": "CIM",
         "capability_source_path": capability.get("_source_path", ""),
         "effective_allowed_skills": capability.get("allowed_skills", []),
+        "effective_skill_mounts": skill_mounts,
         "effective_allowed_mcp_groups": capability.get("allowed_mcp_groups", []),
         "effective_tool_policy": capability.get("tool_policy", "none"),
         "allowed_actions": capability.get("allowed_actions", []),
@@ -180,6 +202,7 @@ def resolve_fab_agent(agent_dir: Path, output_dir: Path, capabilities: dict[str,
         "effective_policy_path": str(agent_out / "effective-agent.json"),
         "claude_settings_path": str(agent_out / "claude-settings.json"),
         "mcp_config_path": str(agent_out / "mcp-config.json"),
+        "approved_skills_path": str(mounted_skills / "approved-skills.json"),
         "audit_log_path": str(agent_out / "audit.log"),
         "effective": effective,
         "validation": validation,

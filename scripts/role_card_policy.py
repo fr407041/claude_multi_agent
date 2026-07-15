@@ -190,8 +190,8 @@ def materialize_role_card_agent(role_card_path: Path, agent_root: Path = FAB_AGE
     }
 
 
-def resolve_role_card(role_card_path: Path, output_dir: Path) -> dict[str, Any]:
-    materialized = materialize_role_card_agent(role_card_path)
+def resolve_role_card(role_card_path: Path, output_dir: Path, agent_root: Path = FAB_AGENT_ROOT) -> dict[str, Any]:
+    materialized = materialize_role_card_agent(role_card_path, agent_root=agent_root)
     if not materialized["passed"]:
         return {"passed": False, "materialized": materialized}
     resolved = resolve_fab_agent(Path(materialized["agent_dir"]), output_dir)

@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fab_agent_policy import ROOT, audit_action, load_audit_entries, resolve_fab_agent, utc_now, write_json
+from fab_agent_policy import ROOT, load_audit_entries, resolve_fab_agent, utc_now, write_json
+from policy_action_guard import guard_action
+from verify_effective_agent_policy import verify_policy
 from verify_generated_output_package import verify_package
 
 
@@ -209,10 +211,14 @@ def main() -> int:
 
     resolved_agents: list[dict[str, Any]] = []
     validation_errors: list[dict[str, Any]] = []
+    policy_preflight_reports: list[dict[str, Any]] = []
     for agent_dir in EXAMPLE_AGENTS:
         resolved = resolve_fab_agent(agent_dir, agents_dir)
         if resolved.get("passed"):
             resolved_agents.append(resolved)
+            policy_report = verify_policy(Path(resolved["output_dir"]))
+            write_json(Path(resolved["output_dir"]) / "effective-policy-preflight.json", policy_report)
+            policy_preflight_reports.append(policy_report)
         else:
             validation_errors.append(resolved)
 
@@ -226,9 +232,9 @@ def main() -> int:
 
     if planner:
         planner_dir = Path(planner["output_dir"])
-        audit_entries.append(audit_action(planner_dir, planner["effective"], "write_agent_artifact", "agents/fab_product_planner/planning-memo.md", "planner memo allowed"))
+        audit_entries.append(guard_action(planner_dir, action="write_agent_artifact", path="agents/fab_product_planner/planning-memo.md", detail="planner memo allowed"))
         write_text(planner_dir / "planning-memo.md", "Product grid, cart count, total update, and checkout limitation are required.\n")
-        audit_entries.append(audit_action(planner_dir, planner["effective"], "write_project_file", "worktree/shopping-site/app.js", "negative enforcement A: readonly agent attempted project write"))
+        audit_entries.append(guard_action(planner_dir, action="write_project_file", path="worktree/shopping-site/app.js", detail="negative enforcement A: readonly agent attempted project write"))
 
     live_result: dict[str, Any] | None = None
     live_outputs_copied = False
@@ -247,15 +253,15 @@ def main() -> int:
             "worktree/shopping-site/app.js",
             "worktree/shopping-site/README.md",
         ]:
-            audit_entries.append(audit_action(builder_dir, builder["effective"], "write_project_file", rel, "builder output allowed"))
+            audit_entries.append(guard_action(builder_dir, action="write_project_file", path=rel, detail="builder output allowed"))
 
     verifier = verify_package(worktree, "shopping-site")
     write_json(ai_dir / "artifact_verify_report.json", verifier)
 
     if reviewer:
         reviewer_dir = Path(reviewer["output_dir"])
-        audit_entries.append(audit_action(reviewer_dir, reviewer["effective"], "run_verifier", "ai_company/artifact_verify_report.json", "reviewer verifier read allowed"))
-        audit_entries.append(audit_action(reviewer_dir, reviewer["effective"], "edit_project_file", "worktree/shopping-site/index.html", "negative enforcement C: reviewer attempted edit"))
+        audit_entries.append(guard_action(reviewer_dir, action="run_verifier", path="ai_company/artifact_verify_report.json", detail="reviewer verifier read allowed"))
+        audit_entries.append(guard_action(reviewer_dir, action="edit_project_file", path="worktree/shopping-site/index.html", detail="negative enforcement C: reviewer attempted edit"))
 
     all_audit_entries: list[dict[str, Any]] = []
     for item in resolved_agents:
@@ -263,12 +269,15 @@ def main() -> int:
 
     blocked_attempts = [item for item in all_audit_entries if item.get("blocked")]
     effective_policies = [item["effective"] for item in resolved_agents]
-    enforcement_passed = not validation_errors and len(blocked_attempts) >= 2
+    policy_preflight_passed = bool(policy_preflight_reports) and all(item.get("passed") for item in policy_preflight_reports)
+    enforcement_passed = not validation_errors and policy_preflight_passed and len(blocked_attempts) >= 2
     live_generation_passed = args.mode == "mock" or bool(live_result and live_result.get("exit_code") == 0 and live_outputs_copied)
     overall_status = "pass" if enforcement_passed and verifier["all_passed"] and live_generation_passed else "fail"
     failure_category = ""
     if validation_errors:
         failure_category = "FAB_AGENT_POLICY_VIOLATION"
+    elif not policy_preflight_passed:
+        failure_category = "EFFECTIVE_AGENT_POLICY_INVALID"
     elif not enforcement_passed:
         failure_category = "CIM_ENFORCEMENT_EVIDENCE_MISSING"
     elif not live_generation_passed:
@@ -291,12 +300,14 @@ def main() -> int:
         "meeting": meeting,
         "effective_policies": effective_policies,
         "validation_errors": validation_errors,
+        "policy_preflight_reports": policy_preflight_reports,
         "audit_entries": all_audit_entries,
         "blocked_attempts": blocked_attempts,
         "verifier": verifier,
         "live_result": live_result,
         "acceptance": {
             "resolved_three_fab_agents": len(resolved_agents) == 3,
+            "effective_policy_preflight_passed": policy_preflight_passed,
             "blocked_readonly_project_write": any(item.get("agent_id") == "fab_product_planner" and item.get("blocked") for item in blocked_attempts),
             "blocked_reviewer_project_edit": any(item.get("agent_id") == "fab_artifact_reviewer" and item.get("blocked") for item in blocked_attempts),
             "shopping_site_verified": bool(verifier["all_passed"]),

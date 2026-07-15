@@ -8,7 +8,11 @@
     },
     {
       "path": "scripts/package_contract.py",
-      "sha256": "7ad6d07e82cd2de93ca5754e98ee0c908a46b978d51a1b1592b7a8926d56a1a6"
+      "sha256": "18556837870a1edbbbfed83ba69fab1171fed30f87d8a616e1c7a0a6c16d28e2"
+    },
+    {
+      "path": "scripts/policy_action_guard.py",
+      "sha256": "c390937b5e23d54d9fb19985b0744de38423ba234779c1e951279997a861eebc"
     },
     {
       "path": "scripts/task_contract.py",
@@ -79,6 +83,10 @@
       "sha256": "f909b8c95764482a133765265955a87461338b2001408b2c6ba60892abae11a2"
     },
     {
+      "path": "scripts/materialize_artifact_package.py",
+      "sha256": "ca981c7ce8d5c927343e0de3784fbf8b9b47bbc99877eb27d51ee5ff203f6abb"
+    },
+    {
       "path": "scripts/probe_provider_diagnostic.py",
       "sha256": "513ca56e5d9e825e8354aa2cece53e29a9b4ea0b1402066d4ae5495628e87e79"
     },
@@ -89,6 +97,10 @@
     {
       "path": "scripts/run_goal_driven_workflow.py",
       "sha256": "a818a8ca7f08806bd94df8fcb506338b06636e962dc4b7abc6f7d0d78e82fd12"
+    },
+    {
+      "path": "scripts/run-container-live-chain-test.ps1",
+      "sha256": "f71662be7176c9fc7bca93b98868a7c572b43ed2713fc820533e8a1f933708fb"
     },
     {
       "path": "scripts/run-shopping-site-common-demo.sh",
@@ -125,6 +137,10 @@
     {
       "path": "scripts/verify_common_research_artifact.py",
       "sha256": "4592197882ea4821c9d6e425075daf83859dfeaec69098d07c6ea92dbaa053ff"
+    },
+    {
+      "path": "scripts/verify_effective_agent_policy.py",
+      "sha256": "18fa5b00fb09b4d68d0f7f3f2661588d670d4b3a8dce3bbf6ac0642da29e4eb7"
     },
     {
       "path": "scripts/verify_generated_output_package.py",
@@ -284,7 +300,7 @@
     },
     {
       "path": "scripts/fab_agent_policy.py",
-      "sha256": "98aaee1d477e3288c91e1b8fdc71dae5229ad882dc8fd66a287b20d4c215e1c4"
+      "sha256": "69e006ef530df416844152d40fcc771e1bbfc4ccaec9c26d713fd25e11da8636"
     },
     {
       "path": "scripts/list_cim_capabilities.py",
@@ -300,15 +316,19 @@
     },
     {
       "path": "scripts/resolve_role_card.py",
-      "sha256": "ac90126a5ce8f122c766d20d0137253552e253ab3d66ea83d56c21c14f44a94b"
+      "sha256": "fbd5701fe6a82fbe5799e263ec713d570c2b384c7857861a695ba02a2986a9bb"
     },
     {
       "path": "scripts/role_card_policy.py",
-      "sha256": "991e224d86f13be179ff7567c762c19c10d6144f31cc6c88bfc155b48d70fc35"
+      "sha256": "7022cbfa95b1bf8ee03b86e3b3ca35318da720609dafad67176f68c4ccc98cc4"
     },
     {
       "path": "scripts/run_fab_agent_poc.py",
-      "sha256": "1cd471e047c9a662a404fc8a40adc6d7e40f174c01bfe0ed3f6e375dc3572a9b"
+      "sha256": "669edb22e5dcea3ab87904169d351ace1a515db89fcd3b3a31a0e02d45435b7a"
+    },
+    {
+      "path": "scripts/sdk_policy_hook_poc.py",
+      "sha256": "350c1abec467800454877ecb6749659d25e24d205452fc7d57e478ab0e6849a1"
     },
     {
       "path": "scripts/validate_fab_agent.py",
@@ -324,11 +344,27 @@
     },
     {
       "path": "tests/test_fab_agent_policy.py",
-      "sha256": "673a229e037935bc6db49e39f03537a0e4e0382af2c4c4b02206f3e40f86e9a3"
+      "sha256": "56081af276e89c12fd4f46e0772780682b060af656ec5e60434188fe142b639b"
+    },
+    {
+      "path": "tests/test_effective_agent_policy.py",
+      "sha256": "21d52380f2e7a2dc0b7222b0a21db0a9fbb5578f295ae0280cc8d66818a8b966"
+    },
+    {
+      "path": "tests/test_policy_action_guard.py",
+      "sha256": "a0e70e786766939f887abae49aaa26499f5ba9870a697f3f0b3c1937c75dbe7c"
+    },
+    {
+      "path": "tests/test_materialize_artifact_package.py",
+      "sha256": "7ccf35191e8cf5b284329886339e50ef2b9d1a2e039fda65ac8998e03ba2db1a"
     },
     {
       "path": "tests/test_role_card_policy.py",
-      "sha256": "c3a419bca90b83e87e9deed37420e4777fa24343f3fe652497df5c56c6fb889e"
+      "sha256": "039e55f28175cef0f76f10b97ef97abf901fd23274e545f4e79efb9efbbf88ab"
+    },
+    {
+      "path": "tests/test_sdk_policy_hook_poc.py",
+      "sha256": "ba4f3870942ba8f1fe4f8b8ef40e2b5a6afe6b05d2884a7cc1656c1cd5d9738d"
     },
     {
       "path": "tests/fixtures/github_repo_scoring/openhands_prepared/repo_metadata.json",
@@ -482,7 +518,7 @@
     },
     {
       "path": "scripts/run_task.sh",
-      "sha256": "7a889dac454f0a58c893229ad6446fb97b00cedc3e34153ed684762723d78470"
+      "sha256": "23cf2cb4fdbb1238a93b591eb5c3d7d55a1ad1ec4e902a41b1821a280db54044"
     },
     {
       "path": "scripts/install_dashboard.sh",

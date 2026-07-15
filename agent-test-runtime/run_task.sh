@@ -11,6 +11,30 @@ printf "%s\n" "$RUNTIME_OVERRIDE_ID" > "${RUN_DIR}/runtime_override_id.txt"
 echo "runtime_override_id=${RUNTIME_OVERRIDE_ID}"
 
 python3 scripts/verify_install.py
+
+if [[ "${REQUIRE_FAB_EFFECTIVE_POLICY:-false}" == "true" ]]; then
+  FAB_POLICY_DIR="${FAB_AGENT_RUNTIME_DIR:-${AI_COMPANY_EFFECTIVE_AGENT_DIR:-}}"
+  if [[ -z "$FAB_POLICY_DIR" ]]; then
+    cat > "${RUN_DIR}/effective-policy-preflight.json" <<'JSON'
+{
+  "passed": false,
+  "errors": [
+    {
+      "code": "EFFECTIVE_AGENT_POLICY_DIR_MISSING",
+      "detail": "Set FAB_AGENT_RUNTIME_DIR or AI_COMPANY_EFFECTIVE_AGENT_DIR when REQUIRE_FAB_EFFECTIVE_POLICY=true."
+    }
+  ]
+}
+JSON
+    echo "EFFECTIVE_AGENT_POLICY_INVALID: missing FAB_AGENT_RUNTIME_DIR" >&2
+    exit 2
+  fi
+  python3 scripts/verify_effective_agent_policy.py \
+    "$FAB_POLICY_DIR" \
+    --json \
+    --out "${RUN_DIR}/effective-policy-preflight.json"
+fi
+
 if [[ "${RUN_REPO_SMOKE_ON_TASK:-true}" == "true" ]]; then
   python3 scripts/run_ai_company_task_harness.py docs/ai_specs/ai-company-release-readiness-strict-demo.json --mode mock
 fi
@@ -34,6 +58,14 @@ import re
 text = os.environ.get("TASK_TEXT", "")
 match = re.search(r"Micro gate\s+([A-F])\b", text, re.IGNORECASE)
 print(match.group(1).upper() if match else "")
+PY
+  }
+
+  detect_site_lite_gate() {
+    python3 - <<'PY'
+import os
+text = os.environ.get("TASK_TEXT", "")
+print("site-lite" if "Shopping site lite gate" in text else "")
 PY
   }
 
@@ -63,6 +95,72 @@ PY
       --gate "$gate" \
       --run-dir "$RUN_DIR" \
       --json | tee "${RUN_DIR}/micro-gate-${gate}-verifier-attempt-${attempt}.json"
+  }
+
+  run_site_lite_verifier() {
+    local attempt="$1"
+    python3 "${MULTI_AGENT_REPO}/scripts/verify_generated_output_package.py" \
+      "${RUN_DIR}/worktree" \
+      --profile shopping-site \
+      --json | tee "${RUN_DIR}/site-lite-verifier-attempt-${attempt}.json"
+  }
+
+  materialize_artifact_package() {
+    local attempt="$1"
+    python3 "${MULTI_AGENT_REPO}/scripts/materialize_artifact_package.py" \
+      --model-output "${RUN_DIR}/claude-attempt-${attempt}.stdout.log" \
+      --root "${RUN_DIR}/worktree" \
+      --report "${RUN_DIR}/artifact-materializer-attempt-${attempt}.json"
+  }
+
+  run_provider_artifact_attempt() {
+    export RUN_DIR MODEL_NAME OLLAMA_BASE_URL TASK_TEXT
+    python3 - <<'PY'
+import json
+import os
+import urllib.request
+from pathlib import Path
+
+run_dir = Path(os.environ["RUN_DIR"])
+model = os.environ.get("MODEL_NAME", "qwen3-coder:30b")
+base = os.environ.get("OLLAMA_BASE_URL", "http://192.168.100.112:11435").rstrip("/")
+prompt = f"""Generate a dependency-free static shopping website. Return only JSON, no markdown, no explanation.
+Schema:
+{{"schema_version":"artifact-package.v1","files":[{{"path":"shopping-site/index.html","content":"..."}},{{"path":"shopping-site/styles.css","content":"..."}},{{"path":"shopping-site/app.js","content":"..."}},{{"path":"shopping-site/README.md","content":"..."}}],"final_answer":"<repeat required nonce>"}}
+Requirements: at least four products, product grid, add-to-cart buttons, cart count update, cart total update, checkout stub that clearly says no real payment is processed, README explains how to review outputs.
+User task:
+{os.environ.get("TASK_TEXT", "")}
+"""
+payload = {
+    "model": model,
+    "messages": [{"role": "user", "content": prompt}],
+    "stream": False,
+    "temperature": 0,
+}
+request_path = run_dir / "provider-artifact-request.json"
+raw_path = run_dir / "provider-artifact-raw-response.json"
+content_path = run_dir / "claude-attempt-provider.stdout.log"
+request_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+req = urllib.request.Request(
+    f"{base}/v1/chat/completions",
+    data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+)
+with urllib.request.urlopen(req, timeout=360) as resp:
+    raw = resp.read().decode("utf-8", "replace")
+raw_path.write_text(raw, encoding="utf-8")
+data = json.loads(raw)
+content = data["choices"][0]["message"]["content"]
+content_path.write_text(content, encoding="utf-8")
+print(content)
+PY
+  }
+
+  materialize_provider_artifact_package() {
+    python3 "${MULTI_AGENT_REPO}/scripts/materialize_artifact_package.py" \
+      --model-output "${RUN_DIR}/claude-attempt-provider.stdout.log" \
+      --root "${RUN_DIR}/worktree" \
+      --report "${RUN_DIR}/artifact-materializer-attempt-provider.json"
   }
 
   expected_micro_gate_artifact() {
@@ -176,18 +274,140 @@ PY
   }
 
   GATE="$(detect_micro_gate)"
+  SITE_GATE="$(detect_site_lite_gate)"
+  ARTIFACT_INSTRUCTION="Write all task artifacts under ${RUN_DIR}/ptt-stock-live/."
+  if [[ -n "$SITE_GATE" ]]; then
+    mkdir -p "${RUN_DIR}/worktree/shopping-site"
+    ARTIFACT_INSTRUCTION="Write all website artifacts under ${RUN_DIR}/worktree/shopping-site/."
+  fi
+
   BASE_PROMPT="You are running inside the dedicated test container. Complete the user task using live tools as needed.
 Run directory: ${RUN_DIR}
 Repository directory: ${MULTI_AGENT_REPO}
 Do not use mock data. Do not rely on any crawler prewritten by the caller. If code is needed, create it yourself inside the run directory.
-Write all task artifacts under ${RUN_DIR}/ptt-stock-live/.
+${ARTIFACT_INSTRUCTION}
 ${TASK_TEXT}"
+
+  if [[ -n "$SITE_GATE" ]]; then
+    BASE_PROMPT="You are running inside the dedicated test container. Generate the requested website output package.
+Run directory: ${RUN_DIR}
+Repository directory: ${MULTI_AGENT_REPO}
+Do not claim files were created unless they are present in the artifact package below.
+Return only this bounded artifact package JSON. Do not call tools. Do not wrap it in markdown.
+ARTIFACT_PACKAGE_JSON_BEGIN
+{
+  \"schema_version\": \"artifact-package.v1\",
+  \"files\": [
+    {\"path\": \"shopping-site/index.html\", \"content\": \"...complete HTML...\"},
+    {\"path\": \"shopping-site/styles.css\", \"content\": \"...complete CSS...\"},
+    {\"path\": \"shopping-site/app.js\", \"content\": \"...complete JavaScript...\"},
+    {\"path\": \"shopping-site/README.md\", \"content\": \"...review instructions...\"}
+  ],
+  \"final_answer\": \"<repeat the required nonce from the user task>\"
+}
+ARTIFACT_PACKAGE_JSON_END
+Content requirements: at least four products, product grid, add-to-cart buttons, cart count update, cart total update, checkout stub that clearly says no real payment is processed, and README review instructions.
+User task:
+${TASK_TEXT}"
+  fi
 
   snapshot_artifacts "${GATE:-none}" "1" "before"
   run_claude_attempt "1" "$BASE_PROMPT"
   snapshot_artifacts "${GATE:-none}" "1" "after"
   if [[ -z "$GATE" ]]; then
     cp "${RUN_DIR}/claude-attempt-1.stdout.log" "${RUN_DIR}/claude-code-response.txt"
+    if [[ -n "$SITE_GATE" ]]; then
+      materialize_artifact_package "1" || true
+      if run_site_lite_verifier "1"; then
+        python3 scripts/task_contract.py \
+          --task-file "${TASK_FILE}" \
+          --response-file "${RUN_DIR}/claude-code-response.txt" \
+          --out "${RUN_DIR}/task-contract.json"
+        exit 0
+      fi
+      SITE_REPAIR_FEEDBACK="$(python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+path = Path(os.environ["RUN_DIR"]) / "site-lite-verifier-attempt-1.json"
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    data = {}
+print(json.dumps({
+    "failure_category": data.get("failure_category", "ARTIFACT_CONTRACT_FAILED"),
+    "failed_checks": data.get("failed_checks", [])[:12],
+    "expected_outputs": data.get("expected_outputs", []),
+}, ensure_ascii=False))
+PY
+)"
+      SITE_REPAIR_PROMPT="${BASE_PROMPT}
+
+The deterministic shopping-site verifier failed.
+Verifier summary:
+${SITE_REPAIR_FEEDBACK}
+
+Repair only the generated output package. If live tool execution is unavailable, return an artifact package JSON instead.
+Your response must contain only this bounded package format:
+ARTIFACT_PACKAGE_JSON_BEGIN
+{
+  \"schema_version\": \"artifact-package.v1\",
+  \"files\": [
+    {\"path\": \"shopping-site/index.html\", \"content\": \"...complete HTML...\"},
+    {\"path\": \"shopping-site/styles.css\", \"content\": \"...complete CSS...\"},
+    {\"path\": \"shopping-site/app.js\", \"content\": \"...complete JavaScript...\"},
+    {\"path\": \"shopping-site/README.md\", \"content\": \"...review instructions...\"}
+  ],
+  \"final_answer\": \"<repeat the required nonce from the original task>\"
+}
+ARTIFACT_PACKAGE_JSON_END
+Rules: paths must be relative exactly as shown; content must be complete; include at least four products, add-to-cart behavior, cart count update, cart total update, and a checkout stub that says no real payment is processed."
+      run_claude_attempt "2" "$SITE_REPAIR_PROMPT"
+      cp "${RUN_DIR}/claude-attempt-2.stdout.log" "${RUN_DIR}/claude-code-response.txt"
+      materialize_artifact_package "2" || true
+      if run_site_lite_verifier "2"; then
+        python3 scripts/task_contract.py \
+          --task-file "${TASK_FILE}" \
+          --response-file "${RUN_DIR}/claude-code-response.txt" \
+          --out "${RUN_DIR}/task-contract.json"
+        exit 0
+      fi
+      echo "SITE_LITE_CLAUDE_PATH_FAILED_TRYING_PROVIDER_ARTIFACT_FALLBACK"
+      if run_provider_artifact_attempt; then
+        cp "${RUN_DIR}/claude-attempt-provider.stdout.log" "${RUN_DIR}/claude-code-response.txt"
+        materialize_provider_artifact_package || true
+        if run_site_lite_verifier "provider"; then
+          python3 scripts/task_contract.py \
+            --task-file "${TASK_FILE}" \
+            --response-file "${RUN_DIR}/claude-code-response.txt" \
+            --out "${RUN_DIR}/task-contract.json"
+          printf "%s\n" "direct_provider_artifact_package" > "${RUN_DIR}/site-lite-fallback-transport.txt"
+          exit 0
+        fi
+      fi
+      export RUN_DIR
+      python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+run_dir = Path(os.environ["RUN_DIR"])
+verifier_path = run_dir / "site-lite-verifier-attempt-2.json"
+try:
+    verifier = json.loads(verifier_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    verifier = {"failed_checks": [f"verifier unreadable: {exc}"], "failure_category": "SITE_LITE_VERIFIER_UNREADABLE"}
+payload = {
+    "status": "failed",
+    "failure_category": verifier.get("failure_category") or "SITE_LITE_VERIFIER_FAILED",
+    "failed_checks": verifier.get("failed_checks", []),
+    "verifier_result_path": str(verifier_path),
+    "repair_attempts": 1,
+}
+print("SITE_LITE_CONTRACT_FAILURE:")
+print(json.dumps(payload, ensure_ascii=False, indent=2))
+PY
+      exit 1
+    fi
     python3 scripts/task_contract.py \
       --task-file "${TASK_FILE}" \
       --response-file "${RUN_DIR}/claude-code-response.txt" \

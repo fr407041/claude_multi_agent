@@ -3,9 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-import shutil
 
-from scripts.role_card_policy import FAB_AGENT_ROOT, parse_role_card, resolve_role_card, slugify_name, validate_role_card, write_role_card
+from scripts.role_card_policy import parse_role_card, resolve_role_card, slugify_name, validate_role_card, write_role_card
 
 
 class RoleCardPolicyTests(unittest.TestCase):
@@ -44,17 +43,16 @@ class RoleCardPolicyTests(unittest.TestCase):
             root = Path(tmp)
             card = root / "frontend.role-card.yaml"
             write_role_card(card, name="Frontend Builder", role="builder", background="Build the generated package.", style="concise")
-            generated_agent_dir = FAB_AGENT_ROOT / slugify_name("Frontend Builder")
-            try:
-                report = resolve_role_card(card, root / "resolved")
-                self.assertTrue(report["passed"], report)
-                effective = report["resolved"]["effective"]
-                self.assertEqual(effective["role"], "builder")
-                self.assertEqual(effective["capability"], "project_builder")
-                self.assertIn("write_project_file", effective["allowed_actions"])
-            finally:
-                if generated_agent_dir.exists():
-                    shutil.rmtree(generated_agent_dir)
+            agent_root = root / "agents"
+            generated_agent_dir = agent_root / slugify_name("Frontend Builder")
+            report = resolve_role_card(card, root / "resolved", agent_root=agent_root)
+            self.assertTrue(report["passed"], report)
+            effective = report["resolved"]["effective"]
+            self.assertEqual(effective["role"], "builder")
+            self.assertEqual(effective["capability"], "project_builder")
+            self.assertIn("write_project_file", effective["allowed_actions"])
+            self.assertTrue(generated_agent_dir.is_dir())
+            self.assertTrue(Path(report["resolved"]["approved_skills_path"]).is_file())
 
     def test_tiny_yaml_parser_reads_multiline_background(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

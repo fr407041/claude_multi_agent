@@ -38,6 +38,13 @@ class FabAgentPolicyTests(unittest.TestCase):
         self.assertEqual(effective["blocked_user_fields"], [])
         self.assertTrue(Path(result["claude_settings_path"]).is_file())
         self.assertTrue(Path(result["mcp_config_path"]).is_file())
+        approved_skills_path = Path(result["approved_skills_path"])
+        self.assertTrue(approved_skills_path.is_file())
+        approved_skills = json.loads(approved_skills_path.read_text(encoding="utf-8"))
+        self.assertEqual(approved_skills["schema_version"], "cim-approved-skills.v1")
+        self.assertEqual(approved_skills["skills"][0]["name"], "research-task-orchestrator")
+        self.assertTrue(approved_skills["skills"][0]["exists"])
+        self.assertEqual(effective["effective_skill_mounts"], approved_skills["skills"])
 
     def test_fab_agent_cannot_set_skills_mcp_hooks_or_tools(self) -> None:
         agent_dir = self._agent(

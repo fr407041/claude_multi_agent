@@ -185,6 +185,36 @@ On PowerShell:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-task-contract-smoke.ps1 -ApiBase http://127.0.0.1:18080
 ```
 
+For the full container live chain used by external SDK-style clients:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-container-live-chain-test.ps1
+```
+
+This starts a dedicated test container, checks `/health`, verifies the mounted
+runtime override marker, then runs a live nonce task through Claude Code Router
+and the configured open-source model. It does not require an Anthropic token and
+does not use the Claude Agent SDK hook POC.
+
+Useful focused modes:
+
+```powershell
+# Basic Claude Code + Router + model path
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-container-live-chain-test.ps1 -LiveGateMode minimal
+
+# Skill visibility without activation
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-container-live-chain-test.ps1 -LiveGateMode skill-visible
+
+# Bounded skill-context smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-container-live-chain-test.ps1 -LiveGateMode skill
+
+# Small artifact creation smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-container-live-chain-test.ps1 -LiveGateMode artifact-lite
+```
+
+`skill-heavy` preserves the old broad wording as a stress gate. It is not the
+default because weak/local models may over-expand the task and time out.
+
 If this reports `STALE_IMAGE_RUNTIME`, the latest repo is mounted but the
 container is not executing the mounted runtime override. Use
 `docker-compose.agent-test.yml`, add the runtime override mount to `docker run`,
@@ -203,6 +233,14 @@ default demo is a shopping-site package because it is easy for humans to review:
 `shopping-site/app.js`, and `shopping-site/README.md`. The architecture is not
 shopping-specific; it is a common "generated outputs + verification evidence"
 demo profile.
+
+When an OSS model through Claude Code/Router describes tool calls but does not
+actually create files, the dedicated runtime may fall back to a bounded artifact
+package transport. In that path, the model still generates the file contents,
+`scripts/materialize_artifact_package.py` only writes declared relative paths
+inside the run worktree, and `scripts/verify_generated_output_package.py` remains
+the acceptance gate. The fallback is recorded in the run artifacts, for example
+`site-lite-fallback-transport.txt`, so it is visible rather than hidden.
 
 Deterministic common demo:
 
@@ -328,6 +366,26 @@ Resolve it into CIM-managed runtime policy:
 python3 scripts/resolve_role_card.py fab_agents/mina/role-card.yaml --out results/fab_agent_resolved
 ```
 
+For run-scoped materialization, keep generated agent config out of the repo
+template directory:
+
+```bash
+python3 scripts/resolve_role_card.py fab_agents/mina/role-card.yaml \
+  --out results/fab_agent_resolved \
+  --agent-root results/fab_agent_resolved/agents
+```
+
+Verify the resolved policy before letting an operation runtime use it:
+
+```bash
+python3 scripts/verify_effective_agent_policy.py \
+  results/fab_agent_resolved/agents/mina --json
+```
+
+This preflight requires `effective-agent.json` plus
+`mounted-skills/approved-skills.json`, and fails if the policy is not
+CIM-managed or if an approved skill source is missing.
+
 Role Card fields are intentionally small:
 
 ```yaml
@@ -390,6 +448,26 @@ Deterministic mode is available for clean-machine checks:
 python3 scripts/run_fab_agent_poc.py --case shopping-site --mode mock
 ```
 
+Minimal Claude Agent SDK hook POC:
+
+```bash
+python3 scripts/sdk_policy_hook_poc.py --mode dry-run
+```
+
+This verifies the CIM policy-to-hook decision shape without requiring the SDK:
+`Read` is allowed for `readonly_research`, while `Write`, `Edit`, and `Bash`
+return a `PreToolUse` deny decision and do not create the target file. To run
+against a real Claude Agent SDK loop, install `claude-agent-sdk` in your own
+environment and use:
+
+```bash
+python3 scripts/sdk_policy_hook_poc.py --mode live
+```
+
+The SDK POC is intentionally separate from the existing CLI runner. It proves
+the next hard-gate path; the verifier/harness layer remains necessary for final
+artifact correctness and false-success prevention.
+
 The dashboard reads these runs from:
 
 ```env
@@ -451,10 +529,12 @@ database rather than crashing the dashboard.
 - `scripts/list_cim_capabilities.py`: list CIM-approved capability choices
 - `scripts/validate_fab_agent.py`: reject Fab agent attempts to self-assign skills/MCP/hooks/tools
 - `scripts/resolve_fab_agent.py`: generate effective policy, Claude settings, MCP config, and audit log
+- `scripts/verify_effective_agent_policy.py`: fail fast when resolved policy or approved skill evidence is missing
 - `scripts/run_fab_agent_poc.py`: common capability-boundary POC runner
 - `scripts/verify_agent_micro_gate.py`: deterministic micro-gate verifier
 - `scripts/run-shopping-site-common-demo.sh`: common live generated-output demo
 - `scripts/verify_generated_output_package.py`: generated output package verifier
+- `scripts/materialize_artifact_package.py`: safely materialize model-produced artifact-package JSON into a bounded worktree
 
 ## Legacy Stress Tests
 

@@ -8,6 +8,9 @@ agent-runs/
 agent-test-runs/
 ptt-stock-live/
 ptt_env/
+worktree/
+shopping-site/
+outputs/
 upstream-main.zip
 ptt_stock_crawler.py
 
